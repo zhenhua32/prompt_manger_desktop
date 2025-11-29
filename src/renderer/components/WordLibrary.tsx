@@ -5,6 +5,7 @@ interface WordLibraryProps {
   words: WordItem[];
   categories: WordCategory[];
   onAddWord: (word: Partial<WordItem>) => Promise<WordItem>;
+  onUpdateWord: (id: string, updates: Partial<WordItem>) => Promise<void>;
   onDeleteWord: (id: string) => void;
 }
 
@@ -12,11 +13,13 @@ const WordLibrary: React.FC<WordLibraryProps> = ({
   words,
   categories,
   onAddWord,
+  onUpdateWord,
   onDeleteWord,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isAddingWord, setIsAddingWord] = useState(false);
+  const [editingWord, setEditingWord] = useState<WordItem | null>(null);
   const [newWord, setNewWord] = useState({
     word: '',
     translation: '',
@@ -48,6 +51,18 @@ const WordLibrary: React.FC<WordLibraryProps> = ({
       });
       setNewWord({ word: '', translation: '', category: 'style', usage: '' });
       setIsAddingWord(false);
+    }
+  };
+
+  const handleEditWord = async () => {
+    if (editingWord && editingWord.word.trim()) {
+      await onUpdateWord(editingWord.id, {
+        word: editingWord.word.trim(),
+        translation: editingWord.translation?.trim() || undefined,
+        category: editingWord.category,
+        usage: editingWord.usage?.trim() || undefined,
+      });
+      setEditingWord(null);
     }
   };
 
@@ -168,6 +183,14 @@ const WordLibrary: React.FC<WordLibraryProps> = ({
                   )}
                 </button>
                 <button
+                  onClick={() => setEditingWord(word)}
+                  className="p-1.5 rounded bg-slate-700 text-slate-400 hover:text-blue-400 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                <button
                   onClick={() => onDeleteWord(word.id)}
                   className="p-1.5 rounded bg-slate-700 text-slate-400 hover:text-red-400 transition-colors"
                 >
@@ -278,6 +301,82 @@ const WordLibrary: React.FC<WordLibraryProps> = ({
                   }`}
                 >
                   添加
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Word Modal */}
+      {editingWord && (
+        <div className="modal-backdrop" onClick={() => setEditingWord(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-slate-200 mb-4">编辑单词</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">
+                    单词 <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editingWord.word}
+                    onChange={(e) => setEditingWord({ ...editingWord, word: e.target.value })}
+                    className="input"
+                    placeholder="例如: photorealistic"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">翻译</label>
+                  <input
+                    type="text"
+                    value={editingWord.translation || ''}
+                    onChange={(e) => setEditingWord({ ...editingWord, translation: e.target.value })}
+                    className="input"
+                    placeholder="例如: 照片级真实"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">分类</label>
+                  <select
+                    value={editingWord.category}
+                    onChange={(e) => setEditingWord({ ...editingWord, category: e.target.value })}
+                    className="input"
+                  >
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-1">用法说明</label>
+                  <textarea
+                    value={editingWord.usage || ''}
+                    onChange={(e) => setEditingWord({ ...editingWord, usage: e.target.value })}
+                    className="textarea h-20"
+                    placeholder="描述这个单词的用途..."
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setEditingWord(null)}
+                  className="btn btn-secondary"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleEditWord}
+                  disabled={!editingWord.word.trim()}
+                  className={`btn btn-primary ${
+                    !editingWord.word.trim() ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  保存
                 </button>
               </div>
             </div>

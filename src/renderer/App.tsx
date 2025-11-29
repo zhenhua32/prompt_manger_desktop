@@ -29,6 +29,7 @@ function App() {
     reorderCategories,
     pinCategoryToTop,
     addWord,
+    updateWord,
     deleteWord,
     addTemplate,
     deleteTemplate,
@@ -197,6 +198,7 @@ function App() {
             words={wordLibrary}
             categories={wordCategories}
             onAddWord={addWord}
+            onUpdateWord={updateWord}
             onDeleteWord={deleteWord}
           />
         )}

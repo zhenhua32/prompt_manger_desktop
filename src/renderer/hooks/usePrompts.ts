@@ -234,6 +234,13 @@ export function usePrompts() {
     await saveWordLibrary(wordLibrary.filter((w) => w.id !== id));
   }, [wordLibrary, saveWordLibrary]);
 
+  const updateWord = useCallback(async (id: string, updates: Partial<WordItem>) => {
+    const updatedWords = wordLibrary.map((w) =>
+      w.id === id ? { ...w, ...updates } : w
+    );
+    await saveWordLibrary(updatedWords);
+  }, [wordLibrary, saveWordLibrary]);
+
   // Template management
   const saveTemplates = useCallback(async (newTemplates: Template[]) => {
     setTemplates(newTemplates);
@@ -306,6 +313,7 @@ export function usePrompts() {
     reorderCategories,
     pinCategoryToTop,
     addWord,
+    updateWord,
     deleteWord,
     addTemplate,
     deleteTemplate,
