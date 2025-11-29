@@ -30,6 +30,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
   const [showVersions, setShowVersions] = useState(false);
   const [showWordLibrary, setShowWordLibrary] = useState(false);
   const [wordSearchQuery, setWordSearchQuery] = useState('');
+  const [selectedWordCategory, setSelectedWordCategory] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -138,6 +139,11 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
   };
 
   const filteredWords = wordLibrary.filter((word) => {
+    // Category filter
+    if (selectedWordCategory && word.category !== selectedWordCategory) {
+      return false;
+    }
+    // Search filter
     if (!wordSearchQuery) return true;
     const query = wordSearchQuery.toLowerCase();
     return (
@@ -303,6 +309,39 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
                 className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-sm text-slate-200 placeholder-slate-500 mb-2"
                 placeholder="搜索单词..."
               />
+              {/* Category Filter */}
+              <div className="flex flex-wrap gap-1 mb-2">
+                <button
+                  onClick={() => setSelectedWordCategory(null)}
+                  className={`px-2 py-0.5 rounded text-xs transition-colors ${
+                    !selectedWordCategory
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                  }`}
+                >
+                  全部
+                </button>
+                {wordCategories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedWordCategory(selectedWordCategory === cat.id ? null : cat.id)}
+                    className={`px-2 py-0.5 rounded text-xs transition-colors flex items-center gap-1 ${
+                      selectedWordCategory === cat.id
+                        ? 'text-white'
+                        : 'text-slate-400 hover:bg-slate-600'
+                    }`}
+                    style={{
+                      backgroundColor: selectedWordCategory === cat.id ? cat.color : undefined,
+                    }}
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ backgroundColor: cat.color }}
+                    />
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
               <div className="max-h-40 overflow-y-auto space-y-1">
                 {filteredWords.slice(0, 20).map((word) => {
                   const wordCat = wordCategories.find(c => c.id === word.category);
