@@ -61,10 +61,18 @@ function App() {
   const handleSavePrompt = async (updates: Partial<Prompt>) => {
     if (selectedPrompt) {
       await updatePrompt(selectedPrompt.id, updates);
-      // Update local state
-      setSelectedPrompt((prev) => prev ? { ...prev, ...updates } : null);
     }
   };
+
+  // Sync selectedPrompt with prompts list
+  React.useEffect(() => {
+    if (selectedPrompt) {
+      const updatedPrompt = prompts.find(p => p.id === selectedPrompt.id);
+      if (updatedPrompt && JSON.stringify(updatedPrompt) !== JSON.stringify(selectedPrompt)) {
+        setSelectedPrompt(updatedPrompt);
+      }
+    }
+  }, [prompts, selectedPrompt]);
 
   const handleDeletePrompt = async (id: string) => {
     await deletePrompt(id);
@@ -92,12 +100,18 @@ function App() {
         currentView={currentView}
         selectedCategory={searchFilter.category}
         showFavorites={searchFilter.favorites}
-        onViewChange={setCurrentView}
+        onViewChange={(view) => {
+          setCurrentView(view);
+          // Clear favorites filter when switching away from prompts view
+          if (view !== 'prompts') {
+            setSearchFilter((prev) => ({ ...prev, favorites: false, category: undefined }));
+          }
+        }}
         onCategorySelect={(category) => 
-          setSearchFilter((prev) => ({ ...prev, category }))
+          setSearchFilter((prev) => ({ ...prev, category, favorites: false }))
         }
         onToggleFavorites={() =>
-          setSearchFilter((prev) => ({ ...prev, favorites: !prev.favorites }))
+          setSearchFilter((prev) => ({ ...prev, favorites: !prev.favorites, category: undefined }))
         }
         onAddCategory={addCategory}
         onExport={exportData}
