@@ -191,7 +191,11 @@ const WordLibrary: React.FC<WordLibraryProps> = ({
                   </svg>
                 </button>
                 <button
-                  onClick={() => onDeleteWord(word.id)}
+                  onClick={() => {
+                    if (confirm('确定要删除这个单词吗？')) {
+                      onDeleteWord(word.id);
+                    }
+                  }}
                   className="p-1.5 rounded bg-slate-700 text-slate-400 hover:text-red-400 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

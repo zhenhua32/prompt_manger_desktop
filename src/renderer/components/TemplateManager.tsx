@@ -181,7 +181,11 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
                     </svg>
                   </button>
                   <button
-                    onClick={() => onDeleteTemplate(template.id)}
+                    onClick={() => {
+                      if (confirm('确定要删除这个模板吗？')) {
+                        onDeleteTemplate(template.id);
+                      }
+                    }}
                     className="p-1.5 rounded bg-slate-700 text-slate-400 hover:text-red-400 transition-colors"
                     title="删除"
                   >
