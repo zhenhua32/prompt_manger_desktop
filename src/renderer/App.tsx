@@ -32,6 +32,7 @@ function App() {
     updateWord,
     deleteWord,
     addTemplate,
+    updateTemplate,
     deleteTemplate,
     exportData,
     importData,
@@ -208,6 +209,7 @@ function App() {
             templates={templates}
             categories={categories}
             onAddTemplate={addTemplate}
+            onUpdateTemplate={updateTemplate}
             onDeleteTemplate={deleteTemplate}
             onUseTemplate={(template) => {
               createPrompt({

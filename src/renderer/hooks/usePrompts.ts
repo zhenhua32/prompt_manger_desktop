@@ -267,6 +267,13 @@ export function usePrompts() {
     await saveTemplates(templates.filter((t) => t.id !== id));
   }, [templates, saveTemplates]);
 
+  const updateTemplate = useCallback(async (id: string, updates: Partial<Template>) => {
+    const updatedTemplates = templates.map((t) =>
+      t.id === id ? { ...t, ...updates } : t
+    );
+    await saveTemplates(updatedTemplates);
+  }, [templates, saveTemplates]);
+
   // Export/Import
   const exportData = useCallback(async () => {
     const data = JSON.stringify({
@@ -316,6 +323,7 @@ export function usePrompts() {
     updateWord,
     deleteWord,
     addTemplate,
+    updateTemplate,
     deleteTemplate,
     exportData,
     importData,
