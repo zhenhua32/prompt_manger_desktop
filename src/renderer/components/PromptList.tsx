@@ -23,6 +23,7 @@ const PromptList: React.FC<PromptListProps> = ({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const dragNode = useRef<HTMLDivElement | null>(null);
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -56,6 +57,17 @@ const PromptList: React.FC<PromptListProps> = ({
     e.preventDefault();
     if (draggedIndex !== null && draggedIndex !== index) {
       setDragOverIndex(index);
+    }
+  };
+
+  const handleCopyContent = async (e: React.MouseEvent, promptId: string, content: string) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedId(promptId);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
     }
   };
 
@@ -198,6 +210,26 @@ const PromptList: React.FC<PromptListProps> = ({
                     {prompt.format}
                   </span>
                 )}
+                <div className="flex-1" />
+                <button
+                  onClick={(e) => handleCopyContent(e, prompt.id, prompt.content)}
+                  className={`p-1 rounded transition-colors flex-shrink-0 ${
+                    copiedId === prompt.id
+                      ? 'text-green-400'
+                      : 'text-slate-500 hover:text-slate-200 hover:bg-slate-700'
+                  }`}
+                  title={copiedId === prompt.id ? '已复制' : '复制内容'}
+                >
+                  {copiedId === prompt.id ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  )}
+                </button>
               </div>
 
               {/* Title */}

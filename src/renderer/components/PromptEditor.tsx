@@ -30,6 +30,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
   const [wordSearchQuery, setWordSearchQuery] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Update local state when prompt changes
   useEffect(() => {
@@ -155,6 +156,16 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     });
   };
 
+  const handleCopyContent = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
   return (
     <div className="w-[500px] h-full bg-slate-800 border-l border-slate-700 flex flex-col">
       {/* Header */}
@@ -168,6 +179,25 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
           )}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleCopyContent}
+            className={`p-2 rounded transition-colors ${
+              copied 
+                ? 'text-green-400 bg-green-400/10' 
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700'
+            }`}
+            title={copied ? '已复制' : '复制内容'}
+          >
+            {copied ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            )}
+          </button>
           <button
             onClick={handleSave}
             disabled={!hasChanges}
