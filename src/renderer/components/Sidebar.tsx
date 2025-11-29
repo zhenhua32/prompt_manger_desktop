@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Category } from '../types';
 
 interface SidebarProps {
@@ -10,6 +10,8 @@ interface SidebarProps {
   onCategorySelect: (category?: string) => void;
   onToggleFavorites: () => void;
   onAddCategory: (category: Partial<Category>) => Promise<Category>;
+  onReorderCategories: (startIndex: number, endIndex: number) => void;
+  onPinCategory: (categoryId: string) => void;
   onExport: () => void;
   onImport: () => void;
 }
@@ -23,17 +25,52 @@ const Sidebar: React.FC<SidebarProps> = ({
   onCategorySelect,
   onToggleFavorites,
   onAddCategory,
+  onReorderCategories,
+  onPinCategory,
   onExport,
   onImport,
 }) => {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const dragNode = useRef<HTMLDivElement | null>(null);
 
   const handleAddCategory = async () => {
     if (newCategoryName.trim()) {
       await onAddCategory({ name: newCategoryName.trim() });
       setNewCategoryName('');
       setIsAddingCategory(false);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    dragNode.current = e.target as HTMLDivElement;
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => {
+      if (dragNode.current) {
+        dragNode.current.style.opacity = '0.5';
+      }
+    }, 0);
+  };
+
+  const handleDragEnd = () => {
+    if (dragNode.current) {
+      dragNode.current.style.opacity = '1';
+    }
+    if (draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex) {
+      onReorderCategories(draggedIndex, dragOverIndex);
+    }
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    dragNode.current = null;
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index);
     }
   };
 
@@ -163,25 +200,50 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {categories.map((category) => (
-            <button
+          {categories.map((category, index) => (
+            <div
               key={category.id}
-              onClick={() => {
-                onViewChange('prompts');
-                onCategorySelect(category.id);
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                selectedCategory === category.id && currentView === 'prompts'
-                  ? 'bg-primary-600/20 text-primary-400'
-                  : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-200'
+              draggable
+              onDragStart={(e) => handleDragStart(e, index)}
+              onDragEnd={handleDragEnd}
+              onDragOver={(e) => handleDragOver(e, index)}
+              className={`group relative flex items-center rounded-lg transition-all ${
+                dragOverIndex === index ? 'ring-1 ring-primary-400' : ''
               }`}
             >
-              <span
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: category.color }}
-              />
-              {category.name}
-            </button>
+              <button
+                onClick={() => {
+                  onViewChange('prompts');
+                  onCategorySelect(category.id);
+                }}
+                className={`flex-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  selectedCategory === category.id && currentView === 'prompts'
+                    ? 'bg-primary-600/20 text-primary-400'
+                    : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-200'
+                }`}
+              >
+                <span
+                  className="w-3 h-3 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: category.color }}
+                />
+                <span className="truncate">{category.name}</span>
+              </button>
+              {/* Pin to top button */}
+              {index > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPinCategory(category.id);
+                  }}
+                  className="absolute right-1 p-1 rounded opacity-0 group-hover:opacity-100 text-slate-500 hover:text-slate-300 hover:bg-slate-700 transition-all"
+                  title="置顶"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  </svg>
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </nav>

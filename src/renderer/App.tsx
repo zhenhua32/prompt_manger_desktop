@@ -26,6 +26,8 @@ function App() {
     toggleFavorite,
     restoreVersion,
     addCategory,
+    reorderCategories,
+    pinCategoryToTop,
     addWord,
     deleteWord,
     addTemplate,
@@ -114,6 +116,8 @@ function App() {
           setSearchFilter((prev) => ({ ...prev, favorites: !prev.favorites, category: undefined }))
         }
         onAddCategory={addCategory}
+        onReorderCategories={reorderCategories}
+        onPinCategory={pinCategoryToTop}
         onExport={exportData}
         onImport={importData}
       />

@@ -191,6 +191,24 @@ export function usePrompts() {
     return newCategory;
   }, [categories, saveCategories]);
 
+  // Reorder categories
+  const reorderCategories = useCallback(async (startIndex: number, endIndex: number) => {
+    const result = Array.from(categories);
+    const [removed] = result.splice(startIndex, 1);
+    result.splice(endIndex, 0, removed);
+    
+    const reordered = result.map((c, index) => ({ ...c, order: index }));
+    await saveCategories(reordered);
+  }, [categories, saveCategories]);
+
+  // Pin category to top
+  const pinCategoryToTop = useCallback(async (categoryId: string) => {
+    const categoryIndex = categories.findIndex(c => c.id === categoryId);
+    if (categoryIndex > 0) {
+      await reorderCategories(categoryIndex, 0);
+    }
+  }, [categories, reorderCategories]);
+
   // Word library management
   const saveWordLibrary = useCallback(async (newWords: WordItem[]) => {
     setWordLibrary(newWords);
@@ -271,7 +289,7 @@ export function usePrompts() {
   return {
     prompts: filteredPrompts,
     allPrompts: prompts,
-    categories,
+    categories: [...categories].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     wordLibrary,
     wordCategories,
     templates,
@@ -285,6 +303,8 @@ export function usePrompts() {
     toggleFavorite,
     restoreVersion,
     addCategory,
+    reorderCategories,
+    pinCategoryToTop,
     addWord,
     deleteWord,
     addTemplate,
