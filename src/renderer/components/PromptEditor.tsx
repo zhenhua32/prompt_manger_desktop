@@ -106,13 +106,30 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     if (textarea) {
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      const newContent = content.substring(0, start) + word + content.substring(end);
+      
+      // Check if the word contains English characters (needs spacing)
+      const isEnglish = /[a-zA-Z]/.test(word);
+      
+      let insertText = word;
+      if (isEnglish) {
+        // Add space before if there's content before cursor and it's not a space/newline
+        const charBefore = start > 0 ? content[start - 1] : '';
+        const needSpaceBefore = charBefore && !/[\s,，。.!！?？:：;；\n]/.test(charBefore);
+        
+        // Add space after if there's content after cursor and it's not a space/newline
+        const charAfter = end < content.length ? content[end] : '';
+        const needSpaceAfter = charAfter && !/[\s,，。.!！?？:：;；\n]/.test(charAfter);
+        
+        insertText = (needSpaceBefore ? ' ' : '') + word + (needSpaceAfter ? ' ' : '');
+      }
+      
+      const newContent = content.substring(0, start) + insertText + content.substring(end);
       setContent(newContent);
       
       // Set cursor position after inserted word
       setTimeout(() => {
         textarea.focus();
-        textarea.setSelectionRange(start + word.length, start + word.length);
+        textarea.setSelectionRange(start + insertText.length, start + insertText.length);
       }, 0);
     }
   };
