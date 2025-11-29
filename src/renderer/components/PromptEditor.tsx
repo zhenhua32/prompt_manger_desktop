@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Prompt, Category, WordItem, PromptFormat } from '../types';
+import { Prompt, Category, WordItem, WordCategory, PromptFormat } from '../types';
 
 interface PromptEditorProps {
   prompt: Prompt;
   categories: Category[];
   wordLibrary: WordItem[];
+  wordCategories: WordCategory[];
   onSave: (updates: Partial<Prompt>) => void;
   onClose: () => void;
   onRestoreVersion: (promptId: string, versionId: string) => void;
@@ -14,6 +15,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
   prompt,
   categories,
   wordLibrary,
+  wordCategories,
   onSave,
   onClose,
   onRestoreVersion,
@@ -302,18 +304,34 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
                 placeholder="搜索单词..."
               />
               <div className="max-h-40 overflow-y-auto space-y-1">
-                {filteredWords.slice(0, 20).map((word) => (
-                  <button
-                    key={word.id}
-                    onClick={() => insertWord(word.word)}
-                    className="w-full text-left px-2 py-1.5 rounded hover:bg-slate-700 transition-colors"
-                  >
-                    <span className="text-sm text-slate-200">{word.word}</span>
-                    {word.translation && (
-                      <span className="text-xs text-slate-500 ml-2">{word.translation}</span>
-                    )}
-                  </button>
-                ))}
+                {filteredWords.slice(0, 20).map((word) => {
+                  const wordCat = wordCategories.find(c => c.id === word.category);
+                  return (
+                    <button
+                      key={word.id}
+                      onClick={() => insertWord(word.word)}
+                      className="w-full text-left px-2 py-1.5 rounded hover:bg-slate-700 transition-colors flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-sm text-slate-200">{word.word}</span>
+                        {word.translation && (
+                          <span className="text-xs text-slate-500 truncate">{word.translation}</span>
+                        )}
+                      </div>
+                      {wordCat && (
+                        <span
+                          className="text-xs px-1.5 py-0.5 rounded flex-shrink-0 ml-2"
+                          style={{
+                            backgroundColor: `${wordCat.color}20`,
+                            color: wordCat.color,
+                          }}
+                        >
+                          {wordCat.name}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

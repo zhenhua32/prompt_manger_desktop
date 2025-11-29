@@ -232,6 +232,7 @@ function App() {
           prompt={selectedPrompt}
           categories={categories}
           wordLibrary={wordLibrary}
+          wordCategories={wordCategories}
           onSave={handleSavePrompt}
           onClose={handleCloseEditor}
           onRestoreVersion={restoreVersion}
