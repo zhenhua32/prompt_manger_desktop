@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Prompt, Category, WordItem, PromptFormat } from '../types';
 
 interface PromptEditorProps {
@@ -29,6 +29,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
   const [showWordLibrary, setShowWordLibrary] = useState(false);
   const [wordSearchQuery, setWordSearchQuery] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
+  const [showImagePreview, setShowImagePreview] = useState(false);
 
   // Update local state when prompt changes
   useEffect(() => {
@@ -53,7 +54,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     setHasChanges(changed);
   }, [title, content, description, category, format, tags, prompt]);
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     onSave({
       title,
       content,
@@ -63,7 +64,22 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
       tags,
     });
     setHasChanges(false);
-  };
+  }, [title, content, description, category, format, tags, onSave]);
+
+  // Ctrl+S shortcut to save
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (hasChanges) {
+          handleSave();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hasChanges, handleSave]);
 
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
@@ -78,9 +94,9 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
 
   const handleSelectImage = async () => {
     if (window.electronAPI) {
-      const imagePath = await window.electronAPI.selectImage();
-      if (imagePath) {
-        onSave({ previewImage: `file://${imagePath}` });
+      const imageDataUrl = await window.electronAPI.selectImage();
+      if (imageDataUrl) {
+        onSave({ previewImage: imageDataUrl });
       }
     }
   };
@@ -308,9 +324,16 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
               <img
                 src={prompt.previewImage}
                 alt="Preview"
-                className="w-full h-32 object-cover rounded-lg"
+                className="w-full max-h-48 object-contain rounded-lg bg-slate-900 cursor-pointer"
+                onClick={() => setShowImagePreview(true)}
               />
               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+                <button
+                  onClick={() => setShowImagePreview(true)}
+                  className="px-3 py-1.5 bg-slate-700 rounded text-sm text-slate-200 hover:bg-slate-600"
+                >
+                  查看
+                </button>
                 <button
                   onClick={handleSelectImage}
                   className="px-3 py-1.5 bg-slate-700 rounded text-sm text-slate-200 hover:bg-slate-600"
@@ -391,6 +414,31 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
           <p>更新时间: {formatDate(prompt.updatedAt)}</p>
         </div>
       </div>
+
+      {/* Image Preview Modal */}
+      {showImagePreview && prompt.previewImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center"
+          onClick={() => setShowImagePreview(false)}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh]">
+            <img
+              src={prompt.previewImage}
+              alt="Preview"
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setShowImagePreview(false)}
+              className="absolute -top-10 right-0 p-2 text-white hover:text-slate-300 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

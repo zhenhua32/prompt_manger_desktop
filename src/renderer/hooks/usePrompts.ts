@@ -92,12 +92,16 @@ export function usePrompts() {
       if (p.id === id) {
         // Save version if content changed
         const versions = [...p.versions];
-        if (updates.content && updates.content !== p.content) {
+        if (updates.content !== undefined && updates.content !== p.content && p.content.trim() !== '') {
           versions.push({
             id: uuidv4(),
             content: p.content,
             createdAt: new Date().toISOString(),
           });
+          // Keep only the last 50 versions
+          if (versions.length > 50) {
+            versions.shift();
+          }
         }
         return {
           ...p,

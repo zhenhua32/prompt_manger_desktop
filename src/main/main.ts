@@ -63,7 +63,7 @@ ipcMain.handle('store-delete', (_, key: string) => {
   return true;
 });
 
-// File dialog for image selection
+// File dialog for image selection - convert to base64 data URL
 ipcMain.handle('select-image', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile'],
@@ -73,7 +73,13 @@ ipcMain.handle('select-image', async () => {
   });
   
   if (!result.canceled && result.filePaths.length > 0) {
-    return result.filePaths[0];
+    const fs = require('fs');
+    const filePath = result.filePaths[0];
+    const ext = filePath.split('.').pop()?.toLowerCase() || 'png';
+    const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+    const imageBuffer = fs.readFileSync(filePath);
+    const base64 = imageBuffer.toString('base64');
+    return `data:${mimeType};base64,${base64}`;
   }
   return null;
 });
