@@ -22,6 +22,7 @@ const PromptList: React.FC<PromptListProps> = ({
 }) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const dragNode = useRef<HTMLDivElement | null>(null);
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -164,11 +165,17 @@ const PromptList: React.FC<PromptListProps> = ({
 
             {/* Preview Image */}
             {prompt.previewImage && (
-              <div className="mb-3 -mx-4 -mt-4 rounded-t-xl overflow-hidden">
+              <div 
+                className="mb-3 -mx-4 -mt-4 rounded-t-xl overflow-hidden cursor-pointer bg-slate-900 flex items-center justify-center h-32"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPreviewImage(prompt.previewImage!);
+                }}
+              >
                 <img
                   src={prompt.previewImage}
                   alt={prompt.title}
-                  className="w-full h-32 object-cover"
+                  className="max-w-full max-h-32 object-contain hover:opacity-90 transition-opacity"
                 />
               </div>
             )}
@@ -236,6 +243,31 @@ const PromptList: React.FC<PromptListProps> = ({
           </div>
         ))}
       </div>
+
+      {/* Image Preview Modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh]">
+            <img
+              src={previewImage}
+              alt="Preview"
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-10 right-0 p-2 text-white hover:text-slate-300 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
