@@ -72,8 +72,14 @@ function App() {
   React.useEffect(() => {
     if (selectedPrompt) {
       const updatedPrompt = prompts.find(p => p.id === selectedPrompt.id);
-      if (updatedPrompt && JSON.stringify(updatedPrompt) !== JSON.stringify(selectedPrompt)) {
-        setSelectedPrompt(updatedPrompt);
+      if (updatedPrompt) {
+        // Only update if content actually changed
+        if (updatedPrompt.content !== selectedPrompt.content ||
+            updatedPrompt.title !== selectedPrompt.title ||
+            updatedPrompt.previewImage !== selectedPrompt.previewImage ||
+            updatedPrompt.referenceImage !== selectedPrompt.referenceImage) {
+          setSelectedPrompt(updatedPrompt);
+        }
       }
     }
   }, [prompts, selectedPrompt]);

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import { Prompt, Category } from '../types';
 
 interface PromptListProps {
@@ -25,6 +25,24 @@ const PromptList: React.FC<PromptListProps> = ({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const dragNode = useRef<HTMLDivElement | null>(null);
+
+  // All hooks must be called before any conditional returns
+  const handleImageClick = useCallback((e: React.MouseEvent, imageSrc: string) => {
+    e.stopPropagation();
+    setPreviewImage(imageSrc);
+  }, []);
+
+  const handleFavoriteToggle = useCallback((e: React.MouseEvent, promptId: string) => {
+    e.stopPropagation();
+    onToggleFavorite(promptId);
+  }, [onToggleFavorite]);
+
+  const handleDeleteClick = useCallback((e: React.MouseEvent, promptId: string) => {
+    e.stopPropagation();
+    if (confirm('确定要删除这个提示词吗？')) {
+      onDelete(promptId);
+    }
+  }, [onDelete]);
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
@@ -133,10 +151,7 @@ const PromptList: React.FC<PromptListProps> = ({
             {/* Actions */}
             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleFavorite(prompt.id);
-                }}
+                onClick={(e) => handleFavoriteToggle(e, prompt.id)}
                 className={`p-1 rounded hover:bg-slate-700 transition-colors ${
                   prompt.isFavorite ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'
                 }`}
@@ -156,12 +171,7 @@ const PromptList: React.FC<PromptListProps> = ({
                 </svg>
               </button>
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (confirm('确定要删除这个提示词吗？')) {
-                    onDelete(prompt.id);
-                  }
-                }}
+                onClick={(e) => handleDeleteClick(e, prompt.id)}
                 className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-slate-700 transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -179,14 +189,12 @@ const PromptList: React.FC<PromptListProps> = ({
             {prompt.previewImage && (
               <div 
                 className="mb-3 -mx-4 -mt-4 rounded-t-xl overflow-hidden cursor-pointer bg-slate-900 flex items-center justify-center h-32"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPreviewImage(prompt.previewImage!);
-                }}
+                onClick={(e) => handleImageClick(e, prompt.previewImage!)}
               >
                 <img
                   src={prompt.previewImage}
                   alt={prompt.title}
+                  loading="lazy"
                   className="max-w-full max-h-32 object-contain hover:opacity-90 transition-opacity"
                 />
               </div>

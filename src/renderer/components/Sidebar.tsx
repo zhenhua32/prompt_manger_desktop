@@ -112,7 +112,10 @@ const Sidebar: React.FC<SidebarProps> = ({
           <button
             onClick={() => {
               onViewChange('prompts');
-              onToggleFavorites();
+              onCategorySelect(undefined);
+              if (!showFavorites) {
+                onToggleFavorites();
+              }
             }}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
               currentView === 'prompts' && showFavorites

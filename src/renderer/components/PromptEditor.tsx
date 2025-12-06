@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Prompt, Category, WordItem, WordCategory, PromptFormat } from '../types';
 
 interface PromptEditorProps {
@@ -161,7 +161,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     }
   };
 
-  const handleCopyImage = async (imageSrc: string, type: 'ref' | 'preview') => {
+  const handleCopyImage = useCallback(async (imageSrc: string, type: 'ref' | 'preview') => {
     try {
       // Create an image element to load the image
       const img = new Image();
@@ -208,7 +208,24 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
       console.error('Failed to copy image:', err);
       alert('复制图片失败: ' + (err as Error).message);
     }
-  };
+  }, []);
+
+  const filteredWords = useMemo(() => {
+    return wordLibrary.filter((word) => {
+      // Category filter
+      if (selectedWordCategory && word.category !== selectedWordCategory) {
+        return false;
+      }
+      // Search filter
+      if (!wordSearchQuery) return true;
+      const query = wordSearchQuery.toLowerCase();
+      return (
+        word.word.toLowerCase().includes(query) ||
+        word.translation?.toLowerCase().includes(query) ||
+        word.tags.some((t) => t.toLowerCase().includes(query))
+      );
+    });
+  }, [wordLibrary, selectedWordCategory, wordSearchQuery]);
 
   const insertWord = (word: string) => {
     const textarea = document.getElementById('content-editor') as HTMLTextAreaElement;
@@ -242,21 +259,6 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
       }, 0);
     }
   };
-
-  const filteredWords = wordLibrary.filter((word) => {
-    // Category filter
-    if (selectedWordCategory && word.category !== selectedWordCategory) {
-      return false;
-    }
-    // Search filter
-    if (!wordSearchQuery) return true;
-    const query = wordSearchQuery.toLowerCase();
-    return (
-      word.word.toLowerCase().includes(query) ||
-      word.translation?.toLowerCase().includes(query) ||
-      word.tags.some((t) => t.toLowerCase().includes(query))
-    );
-  });
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -544,6 +546,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
               <img
                 src={prompt.referenceImage}
                 alt="Reference"
+                loading="lazy"
                 className="w-full max-h-48 object-contain rounded-lg bg-slate-900 cursor-pointer"
                 onClick={() => {
                   setPreviewModalSrc(prompt.referenceImage!);
@@ -664,6 +667,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
               <img
                 src={prompt.previewImage}
                 alt="Preview"
+                loading="lazy"
                 className="w-full max-h-48 object-contain rounded-lg bg-slate-900 cursor-pointer"
                 onClick={() => {
                   setPreviewModalSrc(prompt.previewImage!);
