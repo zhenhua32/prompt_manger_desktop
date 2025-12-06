@@ -8,6 +8,7 @@ export interface Prompt {
   tags: string[];
   format: PromptFormat;
   previewImage?: string;
+  referenceImage?: string;
   createdAt: string;
   updatedAt: string;
   versions: PromptVersion[];

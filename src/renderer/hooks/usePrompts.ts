@@ -74,6 +74,7 @@ export function usePrompts() {
       tags: promptData.tags || [],
       format: promptData.format || 'text',
       previewImage: promptData.previewImage,
+      referenceImage: promptData.referenceImage,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       versions: [],
