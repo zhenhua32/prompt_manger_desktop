@@ -3,6 +3,7 @@ export interface Prompt {
   id: string;
   title: string;
   content: string;
+  contentTranslation?: string;
   description?: string;
   category: string;
   tags: string[];

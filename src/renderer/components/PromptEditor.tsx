@@ -22,6 +22,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
 }) => {
   const [title, setTitle] = useState(prompt.title);
   const [content, setContent] = useState(prompt.content);
+  const [contentTranslation, setContentTranslation] = useState(prompt.contentTranslation || '');
   const [description, setDescription] = useState(prompt.description || '');
   const [category, setCategory] = useState(prompt.category);
   const [format, setFormat] = useState<PromptFormat>(prompt.format);
@@ -42,6 +43,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
   useEffect(() => {
     setTitle(prompt.title);
     setContent(prompt.content);
+    setContentTranslation(prompt.contentTranslation || '');
     setDescription(prompt.description || '');
     setCategory(prompt.category);
     setFormat(prompt.format);
@@ -54,24 +56,26 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     const changed =
       title !== prompt.title ||
       content !== prompt.content ||
+      contentTranslation !== (prompt.contentTranslation || '') ||
       description !== (prompt.description || '') ||
       category !== prompt.category ||
       format !== prompt.format ||
       JSON.stringify(tags) !== JSON.stringify(prompt.tags);
     setHasChanges(changed);
-  }, [title, content, description, category, format, tags, prompt]);
+  }, [title, content, contentTranslation, description, category, format, tags, prompt]);
 
   const handleSave = useCallback(() => {
     onSave({
       title,
       content,
+      contentTranslation: contentTranslation || undefined,
       description: description || undefined,
       category,
       format,
       tags,
     });
     setHasChanges(false);
-  }, [title, content, description, category, format, tags, onSave]);
+  }, [title, content, contentTranslation, description, category, format, tags, onSave]);
 
   // Ctrl+S shortcut to save
   useEffect(() => {
@@ -431,6 +435,17 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
             onChange={(e) => setContent(e.target.value)}
             className={`textarea h-48 ${format === 'code' ? 'code-editor font-mono' : ''}`}
             placeholder="输入提示词内容..."
+          />
+        </div>
+
+        {/* Content Translation */}
+        <div>
+          <label className="block text-sm font-medium text-slate-400 mb-1">内容翻译</label>
+          <textarea
+            value={contentTranslation}
+            onChange={(e) => setContentTranslation(e.target.value)}
+            className="textarea h-24"
+            placeholder="输入提示词内容的中文翻译..."
           />
         </div>
 

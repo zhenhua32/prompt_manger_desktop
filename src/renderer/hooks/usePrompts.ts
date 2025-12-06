@@ -69,6 +69,7 @@ export function usePrompts() {
       id: uuidv4(),
       title: promptData.title || '新提示词',
       content: promptData.content || '',
+      contentTranslation: promptData.contentTranslation,
       description: promptData.description,
       category: promptData.category || 'general',
       tags: promptData.tags || [],
