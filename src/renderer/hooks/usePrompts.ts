@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Prompt, Category, WordItem, WordCategory, Template, SearchFilter } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { defaultCategories, defaultWordLibrary, defaultWordCategories } from '../data/defaults';
@@ -55,11 +55,12 @@ export function usePrompts() {
     loadData();
   }, []);
 
-  // Save prompts
-  const savePrompts = useCallback(async (newPrompts: Prompt[]) => {
+  // Save prompts - update UI immediately, persist asynchronously
+  const savePrompts = useCallback((newPrompts: Prompt[]) => {
     setPrompts(newPrompts);
+    // Persist to storage asynchronously without blocking UI
     if (window.electronAPI) {
-      await window.electronAPI.storeSet(STORAGE_KEYS.PROMPTS, newPrompts);
+      window.electronAPI.storeSet(STORAGE_KEYS.PROMPTS, newPrompts).catch(console.error);
     }
   }, []);
 
@@ -117,29 +118,45 @@ export function usePrompts() {
     await savePrompts(newPrompts);
   }, [prompts, savePrompts]);
 
-  // Delete prompt
-  const deletePrompt = useCallback(async (id: string) => {
-    const newPrompts = prompts.filter((p) => p.id !== id);
-    await savePrompts(newPrompts);
-  }, [prompts, savePrompts]);
+  // Delete prompt - optimized for instant UI response
+  const deletePrompt = useCallback((id: string) => {
+    setPrompts(prev => {
+      const newPrompts = prev.filter((p) => p.id !== id);
+      if (window.electronAPI) {
+        window.electronAPI.storeSet(STORAGE_KEYS.PROMPTS, newPrompts).catch(console.error);
+      }
+      return newPrompts;
+    });
+  }, []);
 
-  // Reorder prompts
-  const reorderPrompts = useCallback(async (startIndex: number, endIndex: number) => {
-    const result = Array.from(prompts);
-    const [removed] = result.splice(startIndex, 1);
-    result.splice(endIndex, 0, removed);
-    
-    const reordered = result.map((p, index) => ({ ...p, order: index }));
-    await savePrompts(reordered);
-  }, [prompts, savePrompts]);
+  // Reorder prompts - optimized for instant UI response
+  const reorderPrompts = useCallback((startIndex: number, endIndex: number) => {
+    setPrompts(prev => {
+      const result = Array.from(prev);
+      const [removed] = result.splice(startIndex, 1);
+      result.splice(endIndex, 0, removed);
+      
+      const reordered = result.map((p, index) => ({ ...p, order: index }));
+      if (window.electronAPI) {
+        window.electronAPI.storeSet(STORAGE_KEYS.PROMPTS, reordered).catch(console.error);
+      }
+      return reordered;
+    });
+  }, []);
 
-  // Toggle favorite
-  const toggleFavorite = useCallback(async (id: string) => {
-    const newPrompts = prompts.map((p) =>
-      p.id === id ? { ...p, isFavorite: !p.isFavorite } : p
-    );
-    await savePrompts(newPrompts);
-  }, [prompts, savePrompts]);
+  // Toggle favorite - optimized for instant UI response
+  const toggleFavorite = useCallback((id: string) => {
+    setPrompts(prev => {
+      const newPrompts = prev.map((p) =>
+        p.id === id ? { ...p, isFavorite: !p.isFavorite } : p
+      );
+      // Persist asynchronously
+      if (window.electronAPI) {
+        window.electronAPI.storeSet(STORAGE_KEYS.PROMPTS, newPrompts).catch(console.error);
+      }
+      return newPrompts;
+    });
+  }, []);
 
   // Restore version
   const restoreVersion = useCallback(async (promptId: string, versionId: string) => {
@@ -152,27 +169,29 @@ export function usePrompts() {
     await updatePrompt(promptId, { content: version.content });
   }, [prompts, updatePrompt]);
 
-  // Filter prompts
-  const filteredPrompts = prompts.filter((prompt) => {
-    const { query, category, tags, format, favorites } = searchFilter;
+  // Filter prompts - memoized for performance
+  const filteredPrompts = useMemo(() => {
+    return prompts.filter((prompt) => {
+      const { query, category, tags, format, favorites } = searchFilter;
 
-    if (query) {
-      const searchLower = query.toLowerCase();
-      const matchesSearch =
-        prompt.title.toLowerCase().includes(searchLower) ||
-        prompt.content.toLowerCase().includes(searchLower) ||
-        prompt.description?.toLowerCase().includes(searchLower) ||
-        prompt.tags.some((tag) => tag.toLowerCase().includes(searchLower));
-      if (!matchesSearch) return false;
-    }
+      if (query) {
+        const searchLower = query.toLowerCase();
+        const matchesSearch =
+          prompt.title.toLowerCase().includes(searchLower) ||
+          prompt.content.toLowerCase().includes(searchLower) ||
+          prompt.description?.toLowerCase().includes(searchLower) ||
+          prompt.tags.some((tag) => tag.toLowerCase().includes(searchLower));
+        if (!matchesSearch) return false;
+      }
 
-    if (category && prompt.category !== category) return false;
-    if (tags && tags.length > 0 && !tags.some((t) => prompt.tags.includes(t))) return false;
-    if (format && prompt.format !== format) return false;
-    if (favorites && !prompt.isFavorite) return false;
+      if (category && prompt.category !== category) return false;
+      if (tags && tags.length > 0 && !tags.some((t) => prompt.tags.includes(t))) return false;
+      if (format && prompt.format !== format) return false;
+      if (favorites && !prompt.isFavorite) return false;
 
-    return true;
-  }).sort((a, b) => a.order - b.order);
+      return true;
+    }).sort((a, b) => a.order - b.order);
+  }, [prompts, searchFilter]);
 
   // Category management
   const saveCategories = useCallback(async (newCategories: Category[]) => {
