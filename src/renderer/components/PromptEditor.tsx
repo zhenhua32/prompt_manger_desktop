@@ -36,6 +36,8 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewModalSrc, setPreviewModalSrc] = useState('');
   const [copied, setCopied] = useState(false);
+  const [refImageCopied, setRefImageCopied] = useState(false);
+  const [previewImageCopied, setPreviewImageCopied] = useState(false);
   const [showRefUrlInput, setShowRefUrlInput] = useState(false);
   const [refImageUrl, setRefImageUrl] = useState('');
 
@@ -156,6 +158,55 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     if (text && /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(text)) {
       e.preventDefault();
       onSave({ referenceImage: text });
+    }
+  };
+
+  const handleCopyImage = async (imageSrc: string, type: 'ref' | 'preview') => {
+    try {
+      // Create an image element to load the image
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = reject;
+        img.src = imageSrc;
+      });
+      
+      // Create a canvas and draw the image
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Failed to get canvas context');
+      
+      ctx.drawImage(img, 0, 0);
+      
+      // Convert canvas to blob
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('Failed to create blob'));
+        }, 'image/png');
+      });
+      
+      // Copy to clipboard
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'image/png': blob,
+        }),
+      ]);
+      
+      if (type === 'ref') {
+        setRefImageCopied(true);
+        setTimeout(() => setRefImageCopied(false), 2000);
+      } else {
+        setPreviewImageCopied(true);
+        setTimeout(() => setPreviewImageCopied(false), 2000);
+      }
+    } catch (err) {
+      console.error('Failed to copy image:', err);
+      alert('复制图片失败: ' + (err as Error).message);
     }
   };
 
@@ -510,6 +561,16 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
                   查看
                 </button>
                 <button
+                  onClick={() => handleCopyImage(prompt.referenceImage!, 'ref')}
+                  className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                    refImageCopied
+                      ? 'bg-green-600 text-white'
+                      : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+                  }`}
+                >
+                  {refImageCopied ? '已复制' : '复制'}
+                </button>
+                <button
                   onClick={handleSelectReferenceImage}
                   className="px-3 py-1.5 bg-slate-700 rounded text-sm text-slate-200 hover:bg-slate-600"
                 >
@@ -618,6 +679,16 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
                   className="px-3 py-1.5 bg-slate-700 rounded text-sm text-slate-200 hover:bg-slate-600"
                 >
                   查看
+                </button>
+                <button
+                  onClick={() => handleCopyImage(prompt.previewImage!, 'preview')}
+                  className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                    previewImageCopied
+                      ? 'bg-green-600 text-white'
+                      : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+                  }`}
+                >
+                  {previewImageCopied ? '已复制' : '复制'}
                 </button>
                 <button
                   onClick={handleSelectPreviewImage}
