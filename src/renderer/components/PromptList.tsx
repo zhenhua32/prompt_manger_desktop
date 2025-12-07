@@ -15,6 +15,10 @@ interface PromptListProps {
 const INITIAL_LOAD = 20;
 const LOAD_MORE = 20;
 
+// Key for storing scroll position
+const SCROLL_POSITION_KEY = 'promptListScrollPosition';
+const VISIBLE_COUNT_KEY = 'promptListVisibleCount';
+
 const PromptList: React.FC<PromptListProps> = ({
   prompts,
   categories,
@@ -28,9 +32,17 @@ const PromptList: React.FC<PromptListProps> = ({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [visibleCount, setVisibleCount] = useState(INITIAL_LOAD);
+  const [visibleCount, setVisibleCount] = useState(() => {
+    // Restore visible count from sessionStorage
+    const saved = sessionStorage.getItem(VISIBLE_COUNT_KEY);
+    return saved ? Math.max(INITIAL_LOAD, parseInt(saved, 10)) : INITIAL_LOAD;
+  });
+  const [showScrollButtons, setShowScrollButtons] = useState(false);
+  const [isAtTop, setIsAtTop] = useState(true);
+  const [isAtBottom, setIsAtBottom] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragNode = useRef<HTMLDivElement | null>(null);
+  const isRestoringScroll = useRef(false);
 
   // All hooks must be called before any conditional returns
   const handleImageClick = useCallback((e: React.MouseEvent, imageSrc: string) => {
@@ -145,12 +157,75 @@ const PromptList: React.FC<PromptListProps> = ({
     setVisibleCount(INITIAL_LOAD);
   }, [prompts.length]);
 
-  // Infinite scroll handler
+  // Infinite scroll handler with position saving
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const target = e.target as HTMLDivElement;
-    const bottom = target.scrollHeight - target.scrollTop - target.clientHeight < 200;
+    const scrollTop = target.scrollTop;
+    const scrollHeight = target.scrollHeight;
+    const clientHeight = target.clientHeight;
+    
+    // Check if at top or bottom
+    setIsAtTop(scrollTop < 100);
+    setIsAtBottom(scrollHeight - scrollTop - clientHeight < 100);
+    setShowScrollButtons(scrollTop > 200);
+    
+    // Load more when near bottom
+    const bottom = scrollHeight - scrollTop - clientHeight < 200;
     if (bottom && hasMore) {
-      setVisibleCount(prev => Math.min(prev + LOAD_MORE, prompts.length));
+      setVisibleCount(prev => {
+        const newCount = Math.min(prev + LOAD_MORE, prompts.length);
+        sessionStorage.setItem(VISIBLE_COUNT_KEY, newCount.toString());
+        return newCount;
+      });
+    }
+    
+    // Save scroll position (debounced effect via sessionStorage)
+    if (!isRestoringScroll.current) {
+      sessionStorage.setItem(SCROLL_POSITION_KEY, scrollTop.toString());
+    }
+  }, [hasMore, prompts.length]);
+
+  // Restore scroll position on mount
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    const savedPosition = sessionStorage.getItem(SCROLL_POSITION_KEY);
+    if (savedPosition) {
+      isRestoringScroll.current = true;
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        container.scrollTop = parseInt(savedPosition, 10);
+        // Update button states
+        setIsAtTop(container.scrollTop < 100);
+        setShowScrollButtons(container.scrollTop > 200);
+        setTimeout(() => {
+          isRestoringScroll.current = false;
+        }, 100);
+      });
+    }
+  }, []);
+
+  // Scroll to top handler
+  const scrollToTop = useCallback(() => {
+    containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  // Scroll to bottom handler
+  const scrollToBottom = useCallback(() => {
+    if (containerRef.current) {
+      // First load all items if not loaded
+      if (hasMore) {
+        setVisibleCount(prompts.length);
+        sessionStorage.setItem(VISIBLE_COUNT_KEY, prompts.length.toString());
+      }
+      // Then scroll to bottom after a small delay for DOM update
+      setTimeout(() => {
+        containerRef.current?.scrollTo({ 
+          top: containerRef.current.scrollHeight, 
+          behavior: 'smooth' 
+        });
+      }, 50);
     }
   }, [hasMore, prompts.length]);
 
@@ -370,6 +445,34 @@ const PromptList: React.FC<PromptListProps> = ({
               </svg>
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Quick scroll buttons */}
+      {showScrollButtons && (
+        <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-40">
+          {!isAtTop && (
+            <button
+              onClick={scrollToTop}
+              className="p-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full shadow-lg transition-all hover:scale-110"
+              title="回到顶部"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+              </svg>
+            </button>
+          )}
+          {!isAtBottom && (
+            <button
+              onClick={scrollToBottom}
+              className="p-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full shadow-lg transition-all hover:scale-110"
+              title="滚动到底部"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          )}
         </div>
       )}
     </div>
