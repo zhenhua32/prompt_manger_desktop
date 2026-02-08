@@ -242,6 +242,14 @@ export function usePrompts() {
     }
   }, [categories, reorderCategories]);
 
+  // Word categories management
+  const saveWordCategories = useCallback(async (newWordCategories: WordCategory[]) => {
+    setWordCategories(newWordCategories);
+    if (window.electronAPI) {
+      await window.electronAPI.storeSet(STORAGE_KEYS.WORD_CATEGORIES, newWordCategories);
+    }
+  }, []);
+
   // Word library management
   const saveWordLibrary = useCallback(async (newWords: WordItem[]) => {
     setWordLibrary(newWords);
@@ -319,13 +327,14 @@ export function usePrompts() {
       prompts,
       categories,
       wordLibrary,
+      wordCategories,
       templates,
     }, null, 2);
     
     if (window.electronAPI) {
       await window.electronAPI.exportPrompts(data);
     }
-  }, [prompts, categories, wordLibrary, templates]);
+  }, [prompts, categories, wordLibrary, wordCategories, templates]);
 
   const importData = useCallback(async () => {
     if (window.electronAPI) {
@@ -334,10 +343,11 @@ export function usePrompts() {
         if (data.prompts) await savePrompts(data.prompts);
         if (data.categories) await saveCategories(data.categories);
         if (data.wordLibrary) await saveWordLibrary(data.wordLibrary);
+        if (data.wordCategories) await saveWordCategories(data.wordCategories);
         if (data.templates) await saveTemplates(data.templates);
       }
     }
-  }, [savePrompts, saveCategories, saveWordLibrary, saveTemplates]);
+  }, [savePrompts, saveCategories, saveWordLibrary, saveWordCategories, saveTemplates]);
 
   return {
     prompts: filteredPrompts,
