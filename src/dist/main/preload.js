@@ -10,4 +10,6 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     selectImage: () => electron_1.ipcRenderer.invoke('select-image'),
     exportPrompts: (data) => electron_1.ipcRenderer.invoke('export-prompts', data),
     importPrompts: () => electron_1.ipcRenderer.invoke('import-prompts'),
+    // Network operations
+    proxyFetch: (url, options) => electron_1.ipcRenderer.invoke('proxy-fetch', url, options),
 });

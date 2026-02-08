@@ -93,3 +93,27 @@ export interface SearchFilter {
   format?: PromptFormat;
   favorites?: boolean;
 }
+
+// Image generation API types
+export interface ImageGenApiConfig {
+  apiUrl: string;
+  apiKey: string;
+  modelName: string;
+  enabled: boolean;
+  customHeaders?: Record<string, string>;
+}
+
+export type ImageGenTaskStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface ImageGenTask {
+  id: string;
+  taskId: string;
+  prompt: string;
+  status: ImageGenTaskStatus;
+  resultImageUrl?: string;
+  resultImageBase64?: string;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+  modelName: string;
+}

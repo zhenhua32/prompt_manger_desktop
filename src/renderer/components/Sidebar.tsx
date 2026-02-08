@@ -3,10 +3,10 @@ import { Category } from '../types';
 
 interface SidebarProps {
   categories: Category[];
-  currentView: 'prompts' | 'wordLibrary' | 'templates';
+  currentView: 'prompts' | 'wordLibrary' | 'templates' | 'imageGen';
   selectedCategory?: string;
   showFavorites?: boolean;
-  onViewChange: (view: 'prompts' | 'wordLibrary' | 'templates') => void;
+  onViewChange: (view: 'prompts' | 'wordLibrary' | 'templates' | 'imageGen') => void;
   onCategorySelect: (category?: string) => void;
   onToggleFavorites: () => void;
   onAddCategory: (category: Partial<Category>) => Promise<Category>;
@@ -153,6 +153,19 @@ const Sidebar: React.FC<SidebarProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
             </svg>
             模板库
+          </button>
+          <button
+            onClick={() => onViewChange('imageGen')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+              currentView === 'imageGen'
+                ? 'bg-primary-600/20 text-primary-400'
+                : 'text-slate-400 hover:bg-slate-700/50 hover:text-slate-200'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            生图任务
           </button>
         </div>
 

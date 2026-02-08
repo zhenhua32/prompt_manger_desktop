@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { usePrompts } from './hooks/usePrompts';
+import { useImageGen } from './hooks/useImageGen';
 import Sidebar from './components/Sidebar';
 import PromptList from './components/PromptList';
 import PromptEditor from './components/PromptEditor';
 import WordLibrary from './components/WordLibrary';
 import TemplateManager from './components/TemplateManager';
+import ApiConfigPanel from './components/ApiConfigPanel';
+import TaskList from './components/TaskList';
 import { Prompt } from './types';
 
-type View = 'prompts' | 'wordLibrary' | 'templates';
+type View = 'prompts' | 'wordLibrary' | 'templates' | 'imageGen';
 
 function App() {
   const {
@@ -38,9 +41,20 @@ function App() {
     importData,
   } = usePrompts();
 
+  const {
+    apiConfig,
+    tasks,
+    saveApiConfig,
+    generateImage,
+    refreshTask,
+    deleteTask,
+    clearFinishedTasks,
+  } = useImageGen();
+
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
   const [currentView, setCurrentView] = useState<View>('prompts');
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [showApiConfig, setShowApiConfig] = useState(false);
 
   const handleCreatePrompt = async () => {
     const newPrompt = await createPrompt({
@@ -111,9 +125,15 @@ function App() {
         selectedCategory={searchFilter.category}
         showFavorites={searchFilter.favorites}
         onViewChange={(view) => {
-          setCurrentView(view);
+          // If switching to imageGen (which is a view type in our App but passed as string to Sidebar), we handle it
+          if (view === 'imageGen') {
+            setCurrentView('imageGen');
+          } else {
+            setCurrentView(view as any);
+          }
+          
           // Clear favorites filter when switching away from prompts view
-          if (view !== 'prompts') {
+          if (view !== 'prompts' && view !== 'imageGen') {
             setSearchFilter((prev) => ({ ...prev, favorites: false, category: undefined }));
           }
         }}
@@ -230,6 +250,55 @@ function App() {
             }}
           />
         )}
+        {currentView === 'imageGen' && (
+          <div className="h-full flex flex-col">
+            <header className="h-16 border-b border-slate-700 flex items-center justify-between px-6 bg-slate-900">
+              <div className="flex items-center gap-4">
+                <h1 className="text-xl font-semibold text-slate-200">
+                  生图任务
+                </h1>
+                <span className="text-sm text-slate-500">
+                  {tasks.length} 个任务
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowApiConfig(!showApiConfig)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                    showApiConfig 
+                      ? 'bg-primary-600/20 text-primary-400' 
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  API 配置
+                </button>
+              </div>
+            </header>
+
+            <div className="flex-1 overflow-hidden flex flex-col">
+              {showApiConfig ? (
+                <ApiConfigPanel 
+                  config={apiConfig} 
+                  onSave={(config) => {
+                    saveApiConfig(config);
+                    // If connection is valid, maybe close the panel or show success
+                  }} 
+                />
+              ) : (
+                <TaskList
+                  tasks={tasks}
+                  onRefresh={refreshTask}
+                  onDelete={deleteTask}
+                  onClearFinished={clearFinishedTasks}
+                />
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Editor Panel */}
@@ -242,6 +311,8 @@ function App() {
           onSave={handleSavePrompt}
           onClose={handleCloseEditor}
           onRestoreVersion={restoreVersion}
+          apiConfig={apiConfig}
+          onGenerateImage={generateImage}
         />
       )}
     </div>

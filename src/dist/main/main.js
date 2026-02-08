@@ -138,3 +138,34 @@ electron_1.ipcMain.handle('import-prompts', async () => {
     }
     return null;
 });
+// Proxy fetch request to bypass CORS
+electron_1.ipcMain.handle('proxy-fetch', async (_, url, options) => {
+    try {
+        // Determine if we should use net.fetch (Electron) or global fetch (Node)
+        // Using global fetch as it's standard in newer Node versions used by Electron
+        const response = await fetch(url, options);
+        const contentType = response.headers.get('content-type');
+        let data;
+        if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+        }
+        else {
+            data = await response.text();
+        }
+        return {
+            ok: response.ok,
+            status: response.status,
+            statusText: response.statusText,
+            data: data
+        };
+    }
+    catch (error) {
+        console.error('Proxy fetch error:', error);
+        return {
+            ok: false,
+            status: 0,
+            statusText: error.message || 'Network Error',
+            data: null
+        };
+    }
+});

@@ -9,6 +9,12 @@ declare global {
       selectImage: () => Promise<string | null>;
       exportPrompts: (data: string) => Promise<boolean>;
       importPrompts: () => Promise<any>;
+      proxyFetch: (url: string, options?: any) => Promise<{
+        ok: boolean;
+        status: number;
+        statusText: string;
+        data: any;
+      }>;
     };
   }
 }
