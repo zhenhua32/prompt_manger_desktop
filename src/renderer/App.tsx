@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { usePrompts } from './hooks/usePrompts';
 import { useImageGen } from './hooks/useImageGen';
 import Sidebar from './components/Sidebar';
@@ -56,7 +56,7 @@ function App() {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [showApiConfig, setShowApiConfig] = useState(false);
 
-  const handleCreatePrompt = async () => {
+  const handleCreatePrompt = useCallback(async () => {
     const newPrompt = await createPrompt({
       title: '新提示词',
       content: '',
@@ -64,30 +64,37 @@ function App() {
     });
     setSelectedPrompt(newPrompt);
     setIsEditorOpen(true);
-  };
+  }, [createPrompt, searchFilter.category]);
 
-  const handleSelectPrompt = (prompt: Prompt) => {
+  const handleSelectPrompt = useCallback((prompt: Prompt) => {
     setSelectedPrompt(prompt);
     setIsEditorOpen(true);
-  };
+  }, []);
 
-  const handleCloseEditor = () => {
+  const handleCloseEditor = useCallback(() => {
     setIsEditorOpen(false);
     setSelectedPrompt(null);
-  };
+  }, []);
 
-  const handleSavePrompt = async (updates: Partial<Prompt>) => {
+  const handleSavePrompt = useCallback(async (updates: Partial<Prompt>) => {
     if (selectedPrompt) {
       await updatePrompt(selectedPrompt.id, updates);
     }
-  };
+  }, [selectedPrompt, updatePrompt]);
+
+  const handleDeletePrompt = useCallback(async (id: string) => {
+    await deletePrompt(id);
+    if (selectedPrompt?.id === id) {
+      setIsEditorOpen(false);
+      setSelectedPrompt(null);
+    }
+  }, [deletePrompt, selectedPrompt?.id]);
 
   // Sync selectedPrompt with prompts list
   React.useEffect(() => {
     if (selectedPrompt) {
       const updatedPrompt = prompts.find(p => p.id === selectedPrompt.id);
       if (updatedPrompt) {
-        // Only update if content actually changed
         if (updatedPrompt.content !== selectedPrompt.content ||
             updatedPrompt.title !== selectedPrompt.title ||
             updatedPrompt.previewImage !== selectedPrompt.previewImage ||
@@ -97,13 +104,6 @@ function App() {
       }
     }
   }, [prompts, selectedPrompt]);
-
-  const handleDeletePrompt = async (id: string) => {
-    await deletePrompt(id);
-    if (selectedPrompt?.id === id) {
-      handleCloseEditor();
-    }
-  };
 
   if (loading) {
     return (

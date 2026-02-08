@@ -56,9 +56,8 @@ export function useImageGen() {
     }
   }, []);
 
-  // Save tasks
-  const saveTasks = useCallback((newTasks: ImageGenTask[]) => {
-    setTasks(newTasks);
+  // Save tasks helper (persists to store)
+  const persistTasks = useCallback((newTasks: ImageGenTask[]) => {
     if (window.electronAPI) {
       window.electronAPI.storeSet(STORAGE_KEYS.TASKS, newTasks).catch(console.error);
     }
@@ -90,7 +89,6 @@ export function useImageGen() {
       let response: { ok: boolean, status: number, statusText: string, data: any };
 
       if (window.electronAPI) {
-        // Use IPC proxy fetch
         response = await window.electronAPI.proxyFetch(`${apiConfig.apiUrl}/v1/images/generations`, {
           method: 'POST',
           headers,
@@ -102,7 +100,6 @@ export function useImageGen() {
           }),
         });
       } else {
-        // Fallback or dev mode without Electron
         const res = await fetch(`${apiConfig.apiUrl}/v1/images/generations`, {
           method: 'POST',
           headers,
@@ -135,13 +132,10 @@ export function useImageGen() {
 
       const data = response.data;
 
-      // Handle async task_id response
       if (data.task_id) {
         task.taskId = data.task_id;
         task.status = 'processing';
-      }
-      // Handle direct response (some APIs return results immediately)
-      else if (data.data && data.data.length > 0) {
+      } else if (data.data && data.data.length > 0) {
         task.taskId = data.data[0].task_id || task.id;
         if (data.data[0].url) {
           task.resultImageUrl = data.data[0].url;
@@ -157,18 +151,24 @@ export function useImageGen() {
       }
 
       task.updatedAt = new Date().toISOString();
-      const newTasks = [task, ...tasks];
-      saveTasks(newTasks);
+      setTasks(prev => {
+        const newTasks = [task, ...prev];
+        persistTasks(newTasks);
+        return newTasks;
+      });
       return task;
     } catch (error: any) {
       task.status = 'failed';
       task.error = error.message || '未知错误';
       task.updatedAt = new Date().toISOString();
-      const newTasks = [task, ...tasks];
-      saveTasks(newTasks);
+      setTasks(prev => {
+        const newTasks = [task, ...prev];
+        persistTasks(newTasks);
+        return newTasks;
+      });
       return task;
     }
-  }, [apiConfig, tasks, saveTasks]);
+  }, [apiConfig, persistTasks]);
 
   // Poll task status
   const pollTaskStatus = useCallback(async (taskId: string, internalId: string) => {
@@ -341,28 +341,35 @@ export function useImageGen() {
     }
   }, [pollTaskStatus]);
 
-  // Auto-poll for processing tasks using setTimeout chain (not setInterval)
+  // Track whether we have processing tasks (only for starting/stopping poll loop)
+  const hasProcessingRef = useRef(false);
+
   useEffect(() => {
     const hasProcessing = tasks.some(t => t.status === 'processing');
-    if (!hasProcessing) {
+    const hadProcessing = hasProcessingRef.current;
+    hasProcessingRef.current = hasProcessing;
+
+    // Only start poll loop on transition from false->true
+    if (hasProcessing && !hadProcessing) {
+      const scheduleNext = () => {
+        pollingRef.current = setTimeout(async () => {
+          await pollOnce();
+          if (tasksRef.current.some(t => t.status === 'processing')) {
+            scheduleNext();
+          } else {
+            pollingRef.current = null;
+          }
+        }, 2000);
+      };
+      scheduleNext();
+    }
+    // Stop on transition from true->false
+    else if (!hasProcessing && hadProcessing) {
       if (pollingRef.current) {
         clearTimeout(pollingRef.current);
         pollingRef.current = null;
       }
-      return;
     }
-
-    const scheduleNext = () => {
-      pollingRef.current = setTimeout(async () => {
-        await pollOnce();
-        // Only schedule next if there are still processing tasks
-        if (tasksRef.current.some(t => t.status === 'processing')) {
-          scheduleNext();
-        }
-      }, 2000);
-    };
-
-    scheduleNext();
 
     return () => {
       if (pollingRef.current) {
@@ -380,15 +387,21 @@ export function useImageGen() {
 
   // Delete a task
   const deleteTask = useCallback((taskId: string) => {
-    const newTasks = tasks.filter(t => t.id !== taskId);
-    saveTasks(newTasks);
-  }, [tasks, saveTasks]);
+    setTasks(prev => {
+      const newTasks = prev.filter(t => t.id !== taskId);
+      persistTasks(newTasks);
+      return newTasks;
+    });
+  }, [persistTasks]);
 
   // Clear all completed / failed tasks
   const clearFinishedTasks = useCallback(() => {
-    const newTasks = tasks.filter(t => t.status === 'processing' || t.status === 'pending');
-    saveTasks(newTasks);
-  }, [tasks, saveTasks]);
+    setTasks(prev => {
+      const newTasks = prev.filter(t => t.status === 'processing' || t.status === 'pending');
+      persistTasks(newTasks);
+      return newTasks;
+    });
+  }, [persistTasks]);
 
   return {
     apiConfig,

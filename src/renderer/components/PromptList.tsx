@@ -479,4 +479,4 @@ const PromptList: React.FC<PromptListProps> = ({
   );
 };
 
-export default PromptList;
+export default React.memo(PromptList);

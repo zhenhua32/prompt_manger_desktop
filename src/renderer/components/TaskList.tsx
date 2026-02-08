@@ -187,4 +187,4 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, onRefresh, onDelete, onClear
   );
 };
 
-export default TaskList;
+export default React.memo(TaskList);

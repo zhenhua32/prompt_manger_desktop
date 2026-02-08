@@ -864,4 +864,4 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
   );
 };
 
-export default PromptEditor;
+export default React.memo(PromptEditor);
