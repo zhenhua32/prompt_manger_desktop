@@ -57,6 +57,8 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     setFormat(prompt.format);
     setTags(prompt.tags);
     setHasChanges(false);
+    setGenTask(null);
+    setIsGenerating(false);
   }, [prompt.id]);
 
   // Track changes
