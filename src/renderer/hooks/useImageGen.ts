@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ImageGenApiConfig, ImageGenTask, ImageGenTaskStatus } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -21,11 +21,17 @@ export function useImageGen() {
   const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tasksRef = useRef<ImageGenTask[]>([]);
   const isPollingRef = useRef(false);
+  const apiConfigRef = useRef<ImageGenApiConfig>(DEFAULT_CONFIG);
 
-  // Keep ref in sync
-  useEffect(() => {
-    tasksRef.current = tasks;
-  }, [tasks]);
+  // Keep refs in sync
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+  useEffect(() => { apiConfigRef.current = apiConfig; }, [apiConfig]);
+
+  // Derived boolean for polling control — only changes on true↔false transition
+  const hasProcessingTasks = useMemo(
+    () => tasks.some(t => t.status === 'processing'),
+    [tasks]
+  );
 
   // Load config and tasks from storage
   useEffect(() => {
@@ -170,19 +176,17 @@ export function useImageGen() {
     }
   }, [apiConfig, persistTasks]);
 
-  // Poll task status
+  // Poll task status — uses apiConfigRef for stable callback reference
   const pollTaskStatus = useCallback(async (taskId: string, internalId: string) => {
-    if (!apiConfig.apiUrl || !apiConfig.apiKey) return;
+    const config = apiConfigRef.current;
+    if (!config.apiUrl || !config.apiKey) return;
 
-    const url = `${apiConfig.apiUrl}/v1/tasks/${taskId}`;
+    const url = `${config.apiUrl}/v1/tasks/${taskId}`;
     const headers: Record<string, string> = {
-      'Authorization': `Bearer ${apiConfig.apiKey}`,
+      'Authorization': `Bearer ${config.apiKey}`,
       'X-ModelScope-Task-Type': 'image_generation',
-      ...apiConfig.customHeaders,
+      ...config.customHeaders,
     };
-
-    console.log('[Poll] >>> GET', url);
-    console.log('[Poll] >>> Headers:', JSON.stringify(headers));
 
     try {
       let response: { ok: boolean, status: number, statusText: string, data: any };
@@ -211,9 +215,6 @@ export function useImageGen() {
           data
         };
       }
-
-      console.log('[Poll] <<< Status:', response.status, 'OK:', response.ok);
-      console.log('[Poll] <<< Data:', JSON.stringify(response.data).slice(0, 800));
 
       if (!response.ok) {
         console.warn('[Poll] Response not ok:', response.status, response.data);
@@ -262,7 +263,6 @@ export function useImageGen() {
         newStatus = 'processing';
       } else {
         // Unknown status - try nested output.task_status
-        console.log('[Poll] Unknown status:', status, '- checking for nested output data');
         const nestedStatus = (data.output?.task_status || '').toLowerCase();
         if (nestedStatus === 'succeeded' || nestedStatus === 'succeed') {
           newStatus = 'completed';
@@ -297,11 +297,12 @@ export function useImageGen() {
     } catch (err) {
       console.error('[Poll] Failed to poll task status:', err);
     }
-  }, [apiConfig]);
+  }, []); // Stable — reads apiConfig from ref
 
   // Sequential polling: wait for current poll to finish before scheduling next
+  // Sequential polling: wait for current poll to finish before scheduling next
   const pollOnce = useCallback(async () => {
-    if (isPollingRef.current) return; // Skip if already polling
+    if (isPollingRef.current) return;
     
     const now = Date.now();
     const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
@@ -309,11 +310,9 @@ export function useImageGen() {
     if (currentProcessing.length === 0) return;
 
     isPollingRef.current = true;
-    console.log('[Poll] Polling', currentProcessing.length, 'processing tasks');
 
     try {
       for (const t of currentProcessing) {
-        // Check if task has exceeded 5 minute timeout
         const elapsed = now - new Date(t.createdAt).getTime();
         if (elapsed > TIMEOUT_MS) {
           console.warn('[Poll] Task', t.taskId, 'timed out after 5 minutes');
@@ -339,44 +338,40 @@ export function useImageGen() {
     } finally {
       isPollingRef.current = false;
     }
-  }, [pollTaskStatus]);
+  }, []); // Stable — pollTaskStatus is stable, reads tasks from ref
 
-  // Track whether we have processing tasks (only for starting/stopping poll loop)
-  const hasProcessingRef = useRef(false);
-
+  // Polling effect — depends only on hasProcessingTasks (boolean), not tasks array.
+  // When tasks update but still have processing items, hasProcessingTasks stays true,
+  // so this effect does NOT re-run, and the setTimeout chain survives.
   useEffect(() => {
-    const hasProcessing = tasks.some(t => t.status === 'processing');
-    const hadProcessing = hasProcessingRef.current;
-    hasProcessingRef.current = hasProcessing;
-
-    // Only start poll loop on transition from false->true
-    if (hasProcessing && !hadProcessing) {
-      const scheduleNext = () => {
-        pollingRef.current = setTimeout(async () => {
-          await pollOnce();
-          if (tasksRef.current.some(t => t.status === 'processing')) {
-            scheduleNext();
-          } else {
-            pollingRef.current = null;
-          }
-        }, 2000);
-      };
-      scheduleNext();
-    }
-    // Stop on transition from true->false
-    else if (!hasProcessing && hadProcessing) {
+    if (!hasProcessingTasks) {
       if (pollingRef.current) {
         clearTimeout(pollingRef.current);
         pollingRef.current = null;
       }
+      return;
     }
+
+    // Start polling chain
+    const scheduleNext = () => {
+      pollingRef.current = setTimeout(async () => {
+        await pollOnce();
+        if (tasksRef.current.some(t => t.status === 'processing')) {
+          scheduleNext();
+        } else {
+          pollingRef.current = null;
+        }
+      }, 3000);
+    };
+    scheduleNext();
 
     return () => {
       if (pollingRef.current) {
         clearTimeout(pollingRef.current);
+        pollingRef.current = null;
       }
     };
-  }, [tasks, pollOnce]);
+  }, [hasProcessingTasks, pollOnce]);
 
   // Manually refresh a task
   const refreshTask = useCallback(async (task: ImageGenTask) => {

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { usePrompts } from './hooks/usePrompts';
 import { useImageGen } from './hooks/useImageGen';
 import Sidebar from './components/Sidebar';
@@ -55,6 +55,25 @@ function App() {
   const [currentView, setCurrentView] = useState<View>('prompts');
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [showApiConfig, setShowApiConfig] = useState(false);
+
+  const handleViewChange = useCallback((view: 'prompts' | 'wordLibrary' | 'templates' | 'imageGen') => {
+    if (view === 'imageGen') {
+      setCurrentView('imageGen');
+    } else {
+      setCurrentView(view);
+    }
+    if (view !== 'prompts' && view !== 'imageGen') {
+      setSearchFilter((prev) => ({ ...prev, favorites: false, category: undefined }));
+    }
+  }, [setSearchFilter]);
+
+  const handleCategorySelect = useCallback((category?: string) => {
+    setSearchFilter((prev) => ({ ...prev, category, favorites: false }));
+  }, [setSearchFilter]);
+
+  const handleToggleFavorites = useCallback(() => {
+    setSearchFilter((prev) => ({ ...prev, favorites: !prev.favorites, category: undefined }));
+  }, [setSearchFilter]);
 
   const handleCreatePrompt = useCallback(async () => {
     const newPrompt = await createPrompt({
@@ -124,25 +143,9 @@ function App() {
         currentView={currentView}
         selectedCategory={searchFilter.category}
         showFavorites={searchFilter.favorites}
-        onViewChange={(view) => {
-          // If switching to imageGen (which is a view type in our App but passed as string to Sidebar), we handle it
-          if (view === 'imageGen') {
-            setCurrentView('imageGen');
-          } else {
-            setCurrentView(view as any);
-          }
-          
-          // Clear favorites filter when switching away from prompts view
-          if (view !== 'prompts' && view !== 'imageGen') {
-            setSearchFilter((prev) => ({ ...prev, favorites: false, category: undefined }));
-          }
-        }}
-        onCategorySelect={(category) => 
-          setSearchFilter((prev) => ({ ...prev, category, favorites: false }))
-        }
-        onToggleFavorites={() =>
-          setSearchFilter((prev) => ({ ...prev, favorites: !prev.favorites, category: undefined }))
-        }
+        onViewChange={handleViewChange}
+        onCategorySelect={handleCategorySelect}
+        onToggleFavorites={handleToggleFavorites}
         onAddCategory={addCategory}
         onReorderCategories={reorderCategories}
         onPinCategory={pinCategoryToTop}

@@ -295,6 +295,12 @@ export function usePrompts() {
     await saveTemplates(updatedTemplates);
   }, [templates, saveTemplates]);
 
+  // Memoize sorted categories to keep stable reference
+  const sortedCategories = useMemo(
+    () => [...categories].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    [categories]
+  );
+
   // Export/Import
   const exportData = useCallback(async () => {
     const data = JSON.stringify({
@@ -324,7 +330,7 @@ export function usePrompts() {
   return {
     prompts: filteredPrompts,
     allPrompts: prompts,
-    categories: [...categories].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    categories: sortedCategories,
     wordLibrary,
     wordCategories,
     templates,
