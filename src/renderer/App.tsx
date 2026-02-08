@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { usePrompts } from './hooks/usePrompts';
 import { useImageGen } from './hooks/useImageGen';
 import Sidebar from './components/Sidebar';
@@ -109,20 +109,33 @@ function App() {
     }
   }, [deletePrompt, selectedPrompt?.id]);
 
-  // Sync selectedPrompt with prompts list
+  // Keep a ref to selectedPrompt id to avoid depending on selectedPrompt in the sync effect
+  const selectedPromptIdRef = useRef<string | null>(null);
+  selectedPromptIdRef.current = selectedPrompt?.id ?? null;
+
+  // Sync selectedPrompt with prompts list — only depends on [prompts]
   React.useEffect(() => {
-    if (selectedPrompt) {
-      const updatedPrompt = prompts.find(p => p.id === selectedPrompt.id);
+    const currentId = selectedPromptIdRef.current;
+    if (currentId) {
+      const updatedPrompt = prompts.find(p => p.id === currentId);
       if (updatedPrompt) {
-        if (updatedPrompt.content !== selectedPrompt.content ||
-            updatedPrompt.title !== selectedPrompt.title ||
-            updatedPrompt.previewImage !== selectedPrompt.previewImage ||
-            updatedPrompt.referenceImage !== selectedPrompt.referenceImage) {
-          setSelectedPrompt(updatedPrompt);
-        }
+        setSelectedPrompt(prev => {
+          if (!prev || prev === updatedPrompt) return prev;
+          // Only update if any displayed field actually changed
+          if (updatedPrompt.content !== prev.content ||
+              updatedPrompt.title !== prev.title ||
+              updatedPrompt.updatedAt !== prev.updatedAt ||
+              updatedPrompt.previewImage !== prev.previewImage ||
+              updatedPrompt.referenceImage !== prev.referenceImage ||
+              updatedPrompt.isFavorite !== prev.isFavorite ||
+              updatedPrompt.category !== prev.category) {
+            return updatedPrompt;
+          }
+          return prev;
+        });
       }
     }
-  }, [prompts, selectedPrompt]);
+  }, [prompts]);
 
   if (loading) {
     return (
