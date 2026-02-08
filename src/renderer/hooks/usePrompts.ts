@@ -64,7 +64,7 @@ export function usePrompts() {
     }
   }, []);
 
-  // Create prompt
+  // Create prompt - uses functional update to avoid stale closure
   const createPrompt = useCallback(async (promptData: Partial<Prompt>): Promise<Prompt> => {
     const newPrompt: Prompt = {
       id: uuidv4(),
@@ -81,42 +81,54 @@ export function usePrompts() {
       updatedAt: new Date().toISOString(),
       versions: [],
       isFavorite: false,
-      order: prompts.length,
+      order: 0,
     };
 
-    const newPrompts = [...prompts, newPrompt];
-    await savePrompts(newPrompts);
-    return newPrompt;
-  }, [prompts, savePrompts]);
-
-  // Update prompt
-  const updatePrompt = useCallback(async (id: string, updates: Partial<Prompt>) => {
-    const newPrompts = prompts.map((p) => {
-      if (p.id === id) {
-        // Save version if content changed
-        const versions = [...p.versions];
-        if (updates.content !== undefined && updates.content !== p.content && p.content.trim() !== '') {
-          versions.push({
-            id: uuidv4(),
-            content: p.content,
-            createdAt: new Date().toISOString(),
-          });
-          // Keep only the last 50 versions
-          if (versions.length > 50) {
-            versions.shift();
-          }
-        }
-        return {
-          ...p,
-          ...updates,
-          versions,
-          updatedAt: new Date().toISOString(),
-        };
+    let finalPrompt = newPrompt;
+    setPrompts(prev => {
+      finalPrompt = { ...newPrompt, order: prev.length };
+      const newPrompts = [...prev, finalPrompt];
+      if (window.electronAPI) {
+        window.electronAPI.storeSet(STORAGE_KEYS.PROMPTS, newPrompts).catch(console.error);
       }
-      return p;
+      return newPrompts;
     });
-    await savePrompts(newPrompts);
-  }, [prompts, savePrompts]);
+    return finalPrompt;
+  }, []);
+
+  // Update prompt - uses functional update to avoid stale closure
+  const updatePrompt = useCallback(async (id: string, updates: Partial<Prompt>) => {
+    setPrompts(prev => {
+      const newPrompts = prev.map((p) => {
+        if (p.id === id) {
+          // Save version if content changed
+          const versions = [...p.versions];
+          if (updates.content !== undefined && updates.content !== p.content && p.content.trim() !== '') {
+            versions.push({
+              id: uuidv4(),
+              content: p.content,
+              createdAt: new Date().toISOString(),
+            });
+            // Keep only the last 50 versions
+            if (versions.length > 50) {
+              versions.shift();
+            }
+          }
+          return {
+            ...p,
+            ...updates,
+            versions,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return p;
+      });
+      if (window.electronAPI) {
+        window.electronAPI.storeSet(STORAGE_KEYS.PROMPTS, newPrompts).catch(console.error);
+      }
+      return newPrompts;
+    });
+  }, []);
 
   // Delete prompt - optimized for instant UI response
   const deletePrompt = useCallback((id: string) => {

@@ -107,14 +107,6 @@ const PromptList: React.FC<PromptListProps> = ({
     }
   };
 
-  const getCategoryColor = (categoryId: string) => {
-    return categories.find((c) => c.id === categoryId)?.color || '#6366f1';
-  };
-
-  const getCategoryName = (categoryId: string) => {
-    return categories.find((c) => c.id === categoryId)?.name || '未分类';
-  };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('zh-CN', {
@@ -405,11 +397,12 @@ const PromptList: React.FC<PromptListProps> = ({
   );
 
   return (
-    <div 
-      ref={containerRef} 
-      className="flex-1 overflow-y-auto p-6"
-      onScroll={handleScroll}
-    >
+    <div className="flex-1 relative overflow-hidden">
+      <div 
+        ref={containerRef} 
+        className="h-full overflow-y-auto p-6"
+        onScroll={handleScroll}
+      >
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {visiblePrompts.map((prompt, index) => renderPromptCard(prompt, index))}
       </div>
@@ -422,6 +415,7 @@ const PromptList: React.FC<PromptListProps> = ({
           </div>
         </div>
       )}
+      </div>
 
       {/* Image Preview Modal */}
       {previewImage && (
@@ -450,7 +444,7 @@ const PromptList: React.FC<PromptListProps> = ({
 
       {/* Quick scroll buttons */}
       {showScrollButtons && (
-        <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-40">
+        <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-40">
           {!isAtTop && (
             <button
               onClick={scrollToTop}

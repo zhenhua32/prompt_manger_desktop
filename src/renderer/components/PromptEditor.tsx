@@ -59,7 +59,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     setHasChanges(false);
     setGenTask(null);
     setIsGenerating(false);
-  }, [prompt.id]);
+  }, [prompt.id, prompt.updatedAt]);
 
   // Track changes
   useEffect(() => {
