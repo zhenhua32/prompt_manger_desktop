@@ -109,10 +109,70 @@ export function usePolish() {
     throw new Error('API 返回格式异常');
   }, []);
 
+  const translateContent = useCallback(async (text: string): Promise<string> => {
+    const config = configRef.current;
+    if (!config.apiUrl || !config.apiKey || !config.modelName) {
+      throw new Error('请先在设置中配置大模型 API');
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${config.apiKey}`,
+    };
+
+    const systemPrompt = '你是一个专业翻译。请将用户提供的文本翻译为中文。如果文本已经是中文，则翻译为英文。只输出翻译结果，不要添加任何解释或额外内容。';
+
+    const body = JSON.stringify({
+      model: config.modelName,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: text },
+      ],
+      temperature: 0.3,
+    });
+
+    let response: { ok: boolean; status: number; statusText: string; data: any };
+
+    if (window.electronAPI) {
+      response = await window.electronAPI.proxyFetch(`${config.apiUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers,
+        body,
+      });
+    } else {
+      const res = await fetch(`${config.apiUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers,
+        body,
+      });
+      const contentType = res.headers.get('content-type');
+      let data;
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        data = await res.text();
+      }
+      response = { ok: res.ok, status: res.status, statusText: res.statusText, data };
+    }
+
+    if (!response.ok) {
+      const errorText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+      throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
+    }
+
+    const data = response.data;
+    if (data.choices && data.choices.length > 0) {
+      return data.choices[0].message?.content?.trim() || '';
+    }
+
+    throw new Error('API 返回格式异常');
+  }, []);
+
   return {
     llmConfig,
     saveLlmConfig,
     polishPrompt,
+    translateContent,
     loading,
   };
 }

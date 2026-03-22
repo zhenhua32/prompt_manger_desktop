@@ -64,6 +64,7 @@ function App() {
     llmConfig,
     saveLlmConfig,
     polishPrompt,
+    translateContent,
   } = usePolish();
 
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
@@ -370,6 +371,7 @@ function App() {
           apiConfig={apiConfig}
           onGenerateImage={generateImage}
           onPolish={polishPrompt}
+          onTranslate={translateContent}
           polishEnabled={llmConfig.enabled}
         />
       )}
