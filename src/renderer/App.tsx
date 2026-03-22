@@ -14,6 +14,13 @@ import { Prompt } from './types';
 
 type View = 'prompts' | 'wordLibrary' | 'templates' | 'imageGen' | 'settings';
 
+/** Stable key that identifies the current prompt filter for scroll persistence */
+function getFilterKey(searchFilter: { favorites?: boolean; category?: string }): string {
+  if (searchFilter.favorites) return 'favorites';
+  if (searchFilter.category) return `cat:${searchFilter.category}`;
+  return 'all';
+}
+
 function App() {
   const {
     prompts,
@@ -176,7 +183,7 @@ function App() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {currentView === 'prompts' && (
+        <div className={`flex-1 flex flex-col overflow-hidden ${currentView === 'prompts' ? '' : 'hidden'}`}>
           <>
             {/* Header */}
             <header className="h-16 border-b border-slate-700 flex items-center justify-between px-6">
@@ -236,15 +243,16 @@ function App() {
               prompts={prompts}
               categories={categories}
               selectedPrompt={selectedPrompt}
+              filterKey={getFilterKey(searchFilter)}
               onSelect={handleSelectPrompt}
               onDelete={handleDeletePrompt}
               onToggleFavorite={toggleFavorite}
               onReorder={reorderPrompts}
             />
           </>
-        )}
+        </div>
 
-        {currentView === 'wordLibrary' && (
+        <div className={`flex-1 flex flex-col overflow-hidden ${currentView === 'wordLibrary' ? '' : 'hidden'}`}>
           <WordLibrary
             words={wordLibrary}
             categories={wordCategories}
@@ -252,9 +260,9 @@ function App() {
             onUpdateWord={updateWord}
             onDeleteWord={deleteWord}
           />
-        )}
+        </div>
 
-        {currentView === 'templates' && (
+        <div className={`flex-1 flex flex-col overflow-hidden ${currentView === 'templates' ? '' : 'hidden'}`}>
           <TemplateManager
             templates={templates}
             categories={categories}
@@ -273,8 +281,9 @@ function App() {
               });
             }}
           />
-        )}
-        {currentView === 'imageGen' && (
+        </div>
+
+        <div className={`flex-1 flex flex-col overflow-hidden ${currentView === 'imageGen' ? '' : 'hidden'}`}>
           <div className="h-full flex flex-col">
             <header className="h-16 border-b border-slate-700 flex items-center justify-between px-6 bg-slate-900">
               <div className="flex items-center gap-4">
@@ -322,16 +331,16 @@ function App() {
               )}
             </div>
           </div>
-        )}
+        </div>
 
-        {currentView === 'settings' && (
+        <div className={`flex-1 flex flex-col overflow-hidden ${currentView === 'settings' ? '' : 'hidden'}`}>
           <SettingsPage
             imageGenConfig={apiConfig}
             llmConfig={llmConfig}
             onSaveImageGenConfig={saveApiConfig}
             onSaveLlmConfig={saveLlmConfig}
           />
-        )}
+        </div>
       </div>
 
       {/* Editor Panel */}

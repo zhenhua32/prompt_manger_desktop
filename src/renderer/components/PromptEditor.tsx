@@ -582,9 +582,15 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
 
           {/* Action Bar: Polish + Generate */}
           <div className="mt-2 flex items-center gap-2">
-            {polishEnabled && onPolish && (
+            {onPolish && (
               <button
-                onClick={handlePolish}
+                onClick={() => {
+                  if (!polishEnabled) {
+                    alert('请先在「设置 → 大模型润色」中配置并启用润色功能');
+                    return;
+                  }
+                  handlePolish();
+                }}
                 disabled={isPolishing || !content.trim()}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-lg text-xs text-white transition-colors"
               >

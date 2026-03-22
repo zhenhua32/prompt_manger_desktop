@@ -5,6 +5,7 @@ interface PromptListProps {
   prompts: Prompt[];
   categories: Category[];
   selectedPrompt: Prompt | null;
+  filterKey?: string;
   onSelect: (prompt: Prompt) => void;
   onDelete: (id: string) => void;
   onToggleFavorite: (id: string) => void;
@@ -23,6 +24,7 @@ const PromptList: React.FC<PromptListProps> = ({
   prompts,
   categories,
   selectedPrompt,
+  filterKey = 'all',
   onSelect,
   onDelete,
   onToggleFavorite,
@@ -144,10 +146,43 @@ const PromptList: React.FC<PromptListProps> = ({
 
   const hasMore = visibleCount < prompts.length;
 
-  // Reset visible count when prompts change (e.g., filter applied)
+  // Per-filter scroll/visibleCount save & restore
+  const filterStateMap = useRef<Map<string, { scrollTop: number; visibleCount: number }>>(new Map());
+  const prevFilterKeyRef = useRef(filterKey);
+  const visibleCountRef = useRef(visibleCount);
+  visibleCountRef.current = visibleCount;
+
   useEffect(() => {
-    setVisibleCount(INITIAL_LOAD);
-  }, [prompts.length]);
+    if (filterKey !== prevFilterKeyRef.current) {
+      const container = containerRef.current;
+
+      // Save state for the old filter
+      filterStateMap.current.set(prevFilterKeyRef.current, {
+        scrollTop: container?.scrollTop || 0,
+        visibleCount: visibleCountRef.current,
+      });
+
+      prevFilterKeyRef.current = filterKey;
+
+      // Restore state for the new filter
+      const saved = filterStateMap.current.get(filterKey);
+      if (saved) {
+        setVisibleCount(Math.max(INITIAL_LOAD, Math.min(saved.visibleCount, prompts.length)));
+        requestAnimationFrame(() => {
+          if (container) {
+            isRestoringScroll.current = true;
+            container.scrollTop = saved.scrollTop;
+            setTimeout(() => { isRestoringScroll.current = false; }, 100);
+          }
+        });
+      } else {
+        setVisibleCount(INITIAL_LOAD);
+        requestAnimationFrame(() => {
+          if (container) container.scrollTop = 0;
+        });
+      }
+    }
+  }, [filterKey, prompts.length]);
 
   // Infinite scroll handler with position saving
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
