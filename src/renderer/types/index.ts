@@ -86,12 +86,15 @@ export interface AppSettings {
 }
 
 // Filter and search types
+export type SortOption = 'timeDesc' | 'timeAsc' | 'titleAsc' | 'titleDesc' | 'order';
+
 export interface SearchFilter {
   query: string;
   category?: string;
   tags?: string[];
   format?: PromptFormat;
   favorites?: boolean;
+  sortBy?: SortOption;
 }
 
 // Image generation API types

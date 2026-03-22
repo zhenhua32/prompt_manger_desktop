@@ -10,7 +10,7 @@ import TemplateManager from './components/TemplateManager';
 import ApiConfigPanel from './components/ApiConfigPanel';
 import TaskList from './components/TaskList';
 import SettingsPage from './components/SettingsPage';
-import { Prompt } from './types';
+import { Prompt, SortOption } from './types';
 
 type View = 'prompts' | 'wordLibrary' | 'templates' | 'imageGen' | 'settings';
 
@@ -200,6 +200,20 @@ function App() {
                 </span>
               </div>
               <div className="flex items-center gap-3">
+                {/* Sort */}
+                <select
+                  value={searchFilter.sortBy || 'timeDesc'}
+                  onChange={(e) =>
+                    setSearchFilter((prev) => ({ ...prev, sortBy: e.target.value as SortOption }))
+                  }
+                  className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-500 cursor-pointer"
+                >
+                  <option value="timeDesc">最近更新</option>
+                  <option value="timeAsc">最早更新</option>
+                  <option value="titleAsc">标题 A→Z</option>
+                  <option value="titleDesc">标题 Z→A</option>
+                  <option value="order">自定义排序</option>
+                </select>
                 {/* Search */}
                 <div className="relative">
                   <input

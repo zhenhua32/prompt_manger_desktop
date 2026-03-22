@@ -202,7 +202,21 @@ export function usePrompts() {
       if (favorites && !prompt.isFavorite) return false;
 
       return true;
-    }).sort((a, b) => a.order - b.order);
+    }).sort((a, b) => {
+      switch (searchFilter.sortBy || 'timeDesc') {
+        case 'timeAsc':
+          return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+        case 'titleAsc':
+          return a.title.localeCompare(b.title, 'zh-CN');
+        case 'titleDesc':
+          return b.title.localeCompare(a.title, 'zh-CN');
+        case 'order':
+          return a.order - b.order;
+        case 'timeDesc':
+        default:
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      }
+    });
   }, [prompts, searchFilter]);
 
   // Category management
