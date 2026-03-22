@@ -98,12 +98,25 @@ export interface SearchFilter {
 }
 
 // Image generation API types
+export type ImageGenProvider = 'openai' | 'a1111' | 'comfyui' | 'custom';
+
+export interface ImageGenParams {
+  width?: number;
+  height?: number;
+  steps?: number;
+  cfgScale?: number;
+  sampler?: string;
+  negativePrompt?: string;
+}
+
 export interface ImageGenApiConfig {
   apiUrl: string;
   apiKey: string;
   modelName: string;
   enabled: boolean;
+  provider: ImageGenProvider;
   customHeaders?: Record<string, string>;
+  defaultParams?: ImageGenParams;
 }
 
 export type ImageGenTaskStatus = 'pending' | 'processing' | 'completed' | 'failed';
@@ -112,6 +125,7 @@ export interface ImageGenTask {
   id: string;
   taskId: string;
   prompt: string;
+  negativePrompt?: string;
   status: ImageGenTaskStatus;
   resultImageUrl?: string;
   resultImageBase64?: string;
@@ -119,6 +133,7 @@ export interface ImageGenTask {
   createdAt: string;
   updatedAt: string;
   modelName: string;
+  params?: ImageGenParams;
 }
 
 // LLM polishing API types

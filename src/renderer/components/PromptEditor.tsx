@@ -10,7 +10,7 @@ interface PromptEditorProps {
   onSave: (updates: Partial<Prompt>) => void;
   onClose: () => void;
   onRestoreVersion: (promptId: string, versionId: string) => void;
-  onGenerateImage?: (prompt: string) => Promise<ImageGenTask | null>;
+  onGenerateImage?: (prompt: string, negativePrompt?: string) => Promise<ImageGenTask | null>;
   onPolish?: (content: string) => Promise<string>;
   onTranslate?: (content: string) => Promise<string>;
   polishEnabled?: boolean;
@@ -55,6 +55,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
   const [isPolishing, setIsPolishing] = useState(false);
   const [polishedContent, setPolishedContent] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [negativePrompt, setNegativePrompt] = useState('');
 
   // Update local state when prompt changes
   useEffect(() => {
@@ -186,7 +187,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     setIsGenerating(true);
     setGenTask(null);
     try {
-      const task = await onGenerateImage(content);
+      const task = await onGenerateImage(content, negativePrompt || undefined);
       if (task) {
         setGenTask(task);
       }
@@ -636,7 +637,8 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
           </div>
 
           {apiConfig?.enabled && onGenerateImage && (
-            <div className="mt-2 flex items-center justify-between bg-slate-700/30 p-2 rounded-lg border border-slate-700/50">
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center justify-between bg-slate-700/30 p-2 rounded-lg border border-slate-700/50">
               <div className="flex items-center gap-2 overflow-hidden">
                 {isGenerating ? (
                   <span className="text-xs text-blue-400 flex items-center gap-1">
@@ -667,6 +669,17 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
                 </svg>
                 生成图片
               </button>
+            </div>
+              {/* Negative Prompt */}
+              <div className="px-2">
+                <input
+                  type="text"
+                  value={negativePrompt}
+                  onChange={(e) => setNegativePrompt(e.target.value)}
+                  placeholder="负面提示词（可选）：lowres, bad anatomy..."
+                  className="w-full px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                />
+              </div>
             </div>
           )}
         </div>

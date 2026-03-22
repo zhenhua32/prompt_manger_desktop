@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { ImageGenApiConfig, ImageGenTask, ImageGenTaskStatus } from '../types';
+import { ImageGenApiConfig, ImageGenTask, ImageGenTaskStatus, ImageGenParams } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 const STORAGE_KEYS = {
@@ -12,6 +12,7 @@ const DEFAULT_CONFIG: ImageGenApiConfig = {
   apiKey: '',
   modelName: '',
   enabled: false,
+  provider: 'openai',
 };
 
 export function useImageGen() {
@@ -69,52 +70,153 @@ export function useImageGen() {
     }
   }, []);
 
-  // Submit image generation request
-  const generateImage = useCallback(async (prompt: string): Promise<ImageGenTask | null> => {
-    if (!apiConfig.apiUrl || !apiConfig.apiKey || !apiConfig.modelName) {
-      throw new Error('请先配置 API 地址、密钥和模型名称');
+  // Build request config based on provider type
+  const buildRequest = useCallback((prompt: string, negativePrompt?: string, params?: ImageGenParams) => {
+    const config = apiConfigRef.current;
+    const mergedParams = { ...config.defaultParams, ...params };
+    const provider = config.provider || 'openai';
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...config.customHeaders,
+    };
+    if (config.apiKey) {
+      headers['Authorization'] = `Bearer ${config.apiKey}`;
     }
 
+    let url: string;
+    let body: any;
+
+    switch (provider) {
+      case 'a1111': {
+        url = `${config.apiUrl}/sdapi/v1/txt2img`;
+        body = {
+          prompt,
+          negative_prompt: negativePrompt || mergedParams.negativePrompt || '',
+          width: mergedParams.width || 512,
+          height: mergedParams.height || 512,
+          steps: mergedParams.steps || 20,
+          cfg_scale: mergedParams.cfgScale || 7,
+          ...(mergedParams.sampler ? { sampler_name: mergedParams.sampler } : {}),
+          ...(config.modelName ? { override_settings: { sd_model_checkpoint: config.modelName } } : {}),
+        };
+        break;
+      }
+      case 'comfyui': {
+        url = `${config.apiUrl}/v1/images/generations`;
+        body = {
+          model: config.modelName,
+          prompt,
+          n: 1,
+          response_format: 'b64_json',
+          ...(negativePrompt || mergedParams.negativePrompt ? { negative_prompt: negativePrompt || mergedParams.negativePrompt } : {}),
+          ...(mergedParams.width ? { width: mergedParams.width } : {}),
+          ...(mergedParams.height ? { height: mergedParams.height } : {}),
+          ...(mergedParams.steps ? { steps: mergedParams.steps } : {}),
+          ...(mergedParams.cfgScale ? { cfg_scale: mergedParams.cfgScale } : {}),
+          ...(mergedParams.sampler ? { sampler: mergedParams.sampler } : {}),
+        };
+        break;
+      }
+      case 'openai':
+      case 'custom':
+      default: {
+        url = `${config.apiUrl}/v1/images/generations`;
+        body = {
+          model: config.modelName,
+          prompt,
+          n: 1,
+          response_format: 'url',
+          ...(negativePrompt || mergedParams.negativePrompt ? { negative_prompt: negativePrompt || mergedParams.negativePrompt } : {}),
+          ...(mergedParams.width ? { size: `${mergedParams.width}x${mergedParams.height || mergedParams.width}` } : {}),
+        };
+        break;
+      }
+    }
+
+    return { url, headers, body };
+  }, []);
+
+  // Parse response based on provider type
+  const parseResponse = useCallback((data: any, provider: string): {
+    taskId?: string;
+    status: ImageGenTaskStatus;
+    imageUrl?: string;
+    imageBase64?: string;
+    error?: string;
+  } => {
+    switch (provider) {
+      case 'a1111': {
+        // A1111 returns synchronously with base64 images
+        if (data.images && data.images.length > 0) {
+          return {
+            status: 'completed',
+            imageBase64: `data:image/png;base64,${data.images[0]}`,
+          };
+        }
+        return { status: 'failed', error: 'A1111 返回无图片数据' };
+      }
+      default: {
+        // OpenAI / ComfyUI / Custom — existing logic
+        if (data.task_id) {
+          return { taskId: data.task_id, status: 'processing' };
+        }
+        if (data.data && data.data.length > 0) {
+          const item = data.data[0];
+          if (item.url) {
+            return { taskId: item.task_id, status: 'completed', imageUrl: item.url };
+          }
+          if (item.b64_json) {
+            return { taskId: item.task_id, status: 'completed', imageBase64: `data:image/png;base64,${item.b64_json}` };
+          }
+          return { taskId: item.task_id, status: 'processing' };
+        }
+        return { status: 'failed', error: 'API 返回格式异常' };
+      }
+    }
+  }, []);
+
+  // Submit image generation request
+  const generateImage = useCallback(async (prompt: string, negativePrompt?: string, params?: ImageGenParams): Promise<ImageGenTask | null> => {
+    const provider = apiConfig.provider || 'openai';
+
+    if (!apiConfig.apiUrl || !apiConfig.modelName) {
+      throw new Error('请先配置 API 地址和模型名称');
+    }
+    // Only require apiKey for non-local providers that typically need auth
+    if (!apiConfig.apiKey && provider === 'openai') {
+      throw new Error('请先配置 API 密钥');
+    }
+
+    const mergedParams = { ...apiConfig.defaultParams, ...params };
     const task: ImageGenTask = {
       id: uuidv4(),
       taskId: '',
       prompt,
+      negativePrompt: negativePrompt || mergedParams.negativePrompt,
       status: 'pending',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       modelName: apiConfig.modelName,
+      params: mergedParams,
     };
 
     try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiConfig.apiKey}`,
-        ...apiConfig.customHeaders,
-      };
+      const { url, headers, body } = buildRequest(prompt, negativePrompt, params);
 
       let response: { ok: boolean, status: number, statusText: string, data: any };
 
       if (window.electronAPI) {
-        response = await window.electronAPI.proxyFetch(`${apiConfig.apiUrl}/v1/images/generations`, {
+        response = await window.electronAPI.proxyFetch(url, {
           method: 'POST',
           headers,
-          body: JSON.stringify({
-            model: apiConfig.modelName,
-            prompt,
-            n: 1,
-            response_format: 'url',
-          }),
+          body: JSON.stringify(body),
         });
       } else {
-        const res = await fetch(`${apiConfig.apiUrl}/v1/images/generations`, {
+        const res = await fetch(url, {
           method: 'POST',
           headers,
-          body: JSON.stringify({
-            model: apiConfig.modelName,
-            prompt,
-            n: 1,
-            response_format: 'url',
-          }),
+          body: JSON.stringify(body),
         });
         const contentType = res.headers.get('content-type');
         let data;
@@ -136,25 +238,16 @@ export function useImageGen() {
         throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
       }
 
-      const data = response.data;
+      const parsed = parseResponse(response.data, provider);
 
-      if (data.task_id) {
-        task.taskId = data.task_id;
-        task.status = 'processing';
-      } else if (data.data && data.data.length > 0) {
-        task.taskId = data.data[0].task_id || task.id;
-        if (data.data[0].url) {
-          task.resultImageUrl = data.data[0].url;
-          task.status = 'completed';
-        } else if (data.data[0].b64_json) {
-          task.resultImageBase64 = `data:image/png;base64,${data.data[0].b64_json}`;
-          task.status = 'completed';
-        } else {
-          task.status = 'processing';
-        }
-      } else {
-        throw new Error('API 返回格式异常');
+      if (parsed.status === 'failed') {
+        throw new Error(parsed.error || '生成失败');
       }
+
+      task.taskId = parsed.taskId || task.id;
+      task.status = parsed.status;
+      if (parsed.imageUrl) task.resultImageUrl = parsed.imageUrl;
+      if (parsed.imageBase64) task.resultImageBase64 = parsed.imageBase64;
 
       task.updatedAt = new Date().toISOString();
       setTasks(prev => {
@@ -174,7 +267,7 @@ export function useImageGen() {
       });
       return task;
     }
-  }, [apiConfig, persistTasks]);
+  }, [apiConfig, persistTasks, buildRequest, parseResponse]);
 
   // Poll task status — optimized to batch updates
   const pollTaskStatus = useCallback(async (taskId: string, internalId: string) => {

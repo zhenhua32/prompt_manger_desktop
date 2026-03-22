@@ -1,5 +1,17 @@
 import React, { useState } from 'react';
-import { ImageGenApiConfig } from '../types';
+import { ImageGenApiConfig, ImageGenProvider } from '../types';
+
+const PROVIDER_PRESETS: Record<ImageGenProvider, { label: string; description: string; defaultUrl: string; defaultModel: string; needsKey: boolean }> = {
+  openai: { label: 'OpenAI 兼容', description: '支持 OpenAI、LocalAI、vLLM 等兼容接口', defaultUrl: '', defaultModel: '', needsKey: true },
+  a1111: { label: 'SD WebUI (A1111/Forge)', description: '支持 Stable Diffusion WebUI、SD.Next、Forge（需启用 --api）', defaultUrl: 'http://localhost:7860', defaultModel: '', needsKey: false },
+  comfyui: { label: 'ComfyUI', description: '需安装 comfyui-openai-api 插件', defaultUrl: 'http://localhost:8188', defaultModel: 'default', needsKey: false },
+  custom: { label: '自定义', description: '自定义 API 端点和请求格式', defaultUrl: '', defaultModel: '', needsKey: false },
+};
+
+const SAMPLER_OPTIONS = [
+  'Euler', 'Euler a', 'DPM++ 2M', 'DPM++ 2M Karras', 'DPM++ SDE', 'DPM++ SDE Karras',
+  'DPM++ 2M SDE', 'DPM++ 2M SDE Karras', 'DDIM', 'UniPC', 'LMS', 'Heun',
+];
 
 interface ApiConfigPanelProps {
   config: ImageGenApiConfig;
@@ -9,7 +21,9 @@ interface ApiConfigPanelProps {
 const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ config, onSave }) => {
   const [formData, setFormData] = useState<ImageGenApiConfig>({ 
     ...config,
-    customHeaders: config.customHeaders || {} 
+    provider: config.provider || 'openai',
+    customHeaders: config.customHeaders || {},
+    defaultParams: config.defaultParams || {},
   });
   const [showKey, setShowKey] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -22,6 +36,25 @@ const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ config, onSave }) => {
 
   const handleChange = (field: keyof ImageGenApiConfig, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    setSaved(false);
+  };
+
+  const handleParamChange = (field: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      defaultParams: { ...prev.defaultParams, [field]: value },
+    }));
+    setSaved(false);
+  };
+
+  const handleProviderChange = (provider: ImageGenProvider) => {
+    const preset = PROVIDER_PRESETS[provider];
+    setFormData(prev => ({
+      ...prev,
+      provider,
+      apiUrl: prev.apiUrl || preset.defaultUrl,
+      modelName: prev.modelName || preset.defaultModel,
+    }));
     setSaved(false);
   };
 
@@ -47,8 +80,12 @@ const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ config, onSave }) => {
   };
 
   const handleTest = async () => {
-    if (!formData.apiUrl || !formData.apiKey) {
-      setTestResult({ ok: false, message: '请先填写 API 地址和密钥' });
+    if (!formData.apiUrl) {
+      setTestResult({ ok: false, message: '请先填写 API 地址' });
+      return;
+    }
+    if (PROVIDER_PRESETS[formData.provider || 'openai'].needsKey && !formData.apiKey) {
+      setTestResult({ ok: false, message: '请先填写 API 密钥' });
       return;
     }
 
@@ -58,19 +95,36 @@ const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ config, onSave }) => {
     try {
       let response: { ok: boolean, status: number, statusText: string, data: any };
       
-      const headers = {
-        'Authorization': `Bearer ${formData.apiKey}`,
+      const headers: Record<string, string> = {
         ...formData.customHeaders,
       };
+      if (formData.apiKey) {
+        headers['Authorization'] = `Bearer ${formData.apiKey}`;
+      }
+
+      // Different test endpoints per provider
+      const provider = formData.provider || 'openai';
+      let testUrl: string;
+      switch (provider) {
+        case 'a1111':
+          testUrl = `${formData.apiUrl}/sdapi/v1/sd-models`;
+          break;
+        case 'comfyui':
+        case 'openai':
+        case 'custom':
+        default:
+          testUrl = `${formData.apiUrl}/v1/models`;
+          break;
+      }
 
       if (window.electronAPI) {
         // Use proxy fetch
-         response = await window.electronAPI.proxyFetch(`${formData.apiUrl}/v1/models`, {
+         response = await window.electronAPI.proxyFetch(testUrl, {
           method: 'GET',
           headers,
         });
       } else {
-        const res = await fetch(`${formData.apiUrl}/v1/models`, {
+        const res = await fetch(testUrl, {
           method: 'GET',
           headers,
         });
@@ -106,34 +160,68 @@ const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ config, onSave }) => {
     <div className="p-6 max-w-2xl mx-auto">
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-slate-200 mb-1">生图模型配置</h2>
-        <p className="text-sm text-slate-400">配置 OpenAI 格式的生图 API 接口，用于直接在应用中测试提示词生成图片。</p>
+        <p className="text-sm text-slate-400">配置生图 API 接口，支持远程 API 和本地模型服务。</p>
       </div>
 
       <div className="space-y-5">
+        {/* Provider Select */}
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1.5">服务类型</label>
+          <div className="grid grid-cols-2 gap-2">
+            {(Object.entries(PROVIDER_PRESETS) as [ImageGenProvider, typeof PROVIDER_PRESETS['openai']][]).map(([key, preset]) => (
+              <button
+                key={key}
+                onClick={() => handleProviderChange(key)}
+                className={`p-3 rounded-lg border text-left transition-colors ${
+                  (formData.provider || 'openai') === key
+                    ? 'border-primary-500 bg-primary-500/10 text-primary-300'
+                    : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-300'
+                }`}
+              >
+                <div className="text-sm font-medium">{preset.label}</div>
+                <div className="text-xs mt-0.5 opacity-70">{preset.description}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* API URL */}
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-1.5">
             API 地址
-            <span className="text-slate-500 font-normal ml-2">（不含 /v1/images/generations 后缀）</span>
+            {(formData.provider || 'openai') === 'a1111' && (
+              <span className="text-slate-500 font-normal ml-2">（WebUI 地址，启动时需加 --api 参数）</span>
+            )}
+            {(formData.provider || 'openai') === 'comfyui' && (
+              <span className="text-slate-500 font-normal ml-2">（需安装 comfyui-openai-api 插件）</span>
+            )}
+            {(formData.provider || 'openai') !== 'a1111' && (formData.provider || 'openai') !== 'comfyui' && (
+              <span className="text-slate-500 font-normal ml-2">（不含 /v1/images/generations 后缀）</span>
+            )}
           </label>
           <input
             type="text"
             value={formData.apiUrl}
             onChange={(e) => handleChange('apiUrl', e.target.value)}
-            placeholder="例如: https://api.example.com"
+            placeholder={PROVIDER_PRESETS[formData.provider || 'openai'].defaultUrl || '例如: https://api.example.com'}
             className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
 
         {/* API Key */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">API 密钥</label>
+          <label className="block text-sm font-medium text-slate-300 mb-1.5">
+            API 密钥
+            {!PROVIDER_PRESETS[formData.provider || 'openai'].needsKey && (
+              <span className="text-slate-500 font-normal ml-2">（本地服务通常不需要）</span>
+            )}
+          </label>
           <div className="relative">
             <input
               type={showKey ? 'text' : 'password'}
               value={formData.apiKey}
               onChange={(e) => handleChange('apiKey', e.target.value)}
-              placeholder="sk-..."
+              placeholder={PROVIDER_PRESETS[formData.provider || 'openai'].needsKey ? 'sk-...' : '可留空'}
               className="w-full px-4 py-2.5 pr-20 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
             <button
@@ -147,7 +235,12 @@ const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ config, onSave }) => {
 
         {/* Model Name */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">模型名称</label>
+          <label className="block text-sm font-medium text-slate-300 mb-1.5">
+            模型名称
+            {(formData.provider || 'openai') === 'a1111' && (
+              <span className="text-slate-500 font-normal ml-2">（checkpoint 文件名，留空使用当前加载的模型）</span>
+            )}
+          </label>
           <input
             type="text"
             value={formData.modelName}
@@ -205,6 +298,92 @@ const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ config, onSave }) => {
             >
               添加
             </button>
+          </div>
+        </div>
+
+        {/* Generation Parameters */}
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1.5">
+            默认生图参数
+            <span className="text-slate-500 font-normal ml-2">（本地模型可控制更多参数）</span>
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">宽度 (px)</label>
+              <input
+                type="number"
+                value={formData.defaultParams?.width || ''}
+                onChange={(e) => handleParamChange('width', e.target.value ? parseInt(e.target.value) : undefined)}
+                placeholder="512"
+                min={64}
+                max={2048}
+                step={64}
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">高度 (px)</label>
+              <input
+                type="number"
+                value={formData.defaultParams?.height || ''}
+                onChange={(e) => handleParamChange('height', e.target.value ? parseInt(e.target.value) : undefined)}
+                placeholder="512"
+                min={64}
+                max={2048}
+                step={64}
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">迭代步数 (Steps)</label>
+              <input
+                type="number"
+                value={formData.defaultParams?.steps || ''}
+                onChange={(e) => handleParamChange('steps', e.target.value ? parseInt(e.target.value) : undefined)}
+                placeholder="20"
+                min={1}
+                max={150}
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">CFG Scale</label>
+              <input
+                type="number"
+                value={formData.defaultParams?.cfgScale || ''}
+                onChange={(e) => handleParamChange('cfgScale', e.target.value ? parseFloat(e.target.value) : undefined)}
+                placeholder="7"
+                min={1}
+                max={30}
+                step={0.5}
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+          </div>
+          {/* Sampler */}
+          <div className="mt-3">
+            <label className="block text-xs text-slate-500 mb-1">采样器 (Sampler)</label>
+            <select
+              value={formData.defaultParams?.sampler || ''}
+              onChange={(e) => handleParamChange('sampler', e.target.value || undefined)}
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="">默认</option>
+              {SAMPLER_OPTIONS.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+          {/* Default Negative Prompt */}
+          <div className="mt-3">
+            <label className="block text-xs text-slate-500 mb-1">默认负面提示词</label>
+            <textarea
+              value={formData.defaultParams?.negativePrompt || ''}
+              onChange={(e) => handleParamChange('negativePrompt', e.target.value || undefined)}
+              placeholder="例如: lowres, bad anatomy, worst quality..."
+              rows={2}
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+            />
           </div>
         </div>
 
