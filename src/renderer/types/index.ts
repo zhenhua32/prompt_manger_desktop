@@ -117,3 +117,12 @@ export interface ImageGenTask {
   updatedAt: string;
   modelName: string;
 }
+
+// LLM polishing API types
+export interface LLMApiConfig {
+  apiUrl: string;
+  apiKey: string;
+  modelName: string;
+  enabled: boolean;
+  systemPrompt: string;
+}

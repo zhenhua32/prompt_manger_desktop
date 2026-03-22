@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { usePrompts } from './hooks/usePrompts';
 import { useImageGen } from './hooks/useImageGen';
+import { usePolish } from './hooks/usePolish';
 import Sidebar from './components/Sidebar';
 import PromptList from './components/PromptList';
 import PromptEditor from './components/PromptEditor';
@@ -8,9 +9,10 @@ import WordLibrary from './components/WordLibrary';
 import TemplateManager from './components/TemplateManager';
 import ApiConfigPanel from './components/ApiConfigPanel';
 import TaskList from './components/TaskList';
+import SettingsPage from './components/SettingsPage';
 import { Prompt } from './types';
 
-type View = 'prompts' | 'wordLibrary' | 'templates' | 'imageGen';
+type View = 'prompts' | 'wordLibrary' | 'templates' | 'imageGen' | 'settings';
 
 function App() {
   const {
@@ -51,12 +53,18 @@ function App() {
     clearFinishedTasks,
   } = useImageGen();
 
+  const {
+    llmConfig,
+    saveLlmConfig,
+    polishPrompt,
+  } = usePolish();
+
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
   const [currentView, setCurrentView] = useState<View>('prompts');
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [showApiConfig, setShowApiConfig] = useState(false);
 
-  const handleViewChange = useCallback((view: 'prompts' | 'wordLibrary' | 'templates' | 'imageGen') => {
+  const handleViewChange = useCallback((view: 'prompts' | 'wordLibrary' | 'templates' | 'imageGen' | 'settings') => {
     if (view === 'imageGen') {
       setCurrentView('imageGen');
     } else {
@@ -315,6 +323,15 @@ function App() {
             </div>
           </div>
         )}
+
+        {currentView === 'settings' && (
+          <SettingsPage
+            imageGenConfig={apiConfig}
+            llmConfig={llmConfig}
+            onSaveImageGenConfig={saveApiConfig}
+            onSaveLlmConfig={saveLlmConfig}
+          />
+        )}
       </div>
 
       {/* Editor Panel */}
@@ -329,6 +346,8 @@ function App() {
           onRestoreVersion={restoreVersion}
           apiConfig={apiConfig}
           onGenerateImage={generateImage}
+          onPolish={polishPrompt}
+          polishEnabled={llmConfig.enabled}
         />
       )}
     </div>

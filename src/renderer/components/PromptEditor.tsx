@@ -11,6 +11,8 @@ interface PromptEditorProps {
   onClose: () => void;
   onRestoreVersion: (promptId: string, versionId: string) => void;
   onGenerateImage?: (prompt: string) => Promise<ImageGenTask | null>;
+  onPolish?: (content: string) => Promise<string>;
+  polishEnabled?: boolean;
 }
 
 const PromptEditor: React.FC<PromptEditorProps> = ({
@@ -23,6 +25,8 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
   onClose,
   onRestoreVersion,
   onGenerateImage,
+  onPolish,
+  polishEnabled,
 }) => {
   const [title, setTitle] = useState(prompt.title);
   const [content, setContent] = useState(prompt.content);
@@ -46,6 +50,8 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
   const [refImageUrl, setRefImageUrl] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [genTask, setGenTask] = useState<ImageGenTask | null>(null);
+  const [isPolishing, setIsPolishing] = useState(false);
+  const [polishedContent, setPolishedContent] = useState<string | null>(null);
 
   // Update local state when prompt changes
   useEffect(() => {
@@ -59,6 +65,8 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     setHasChanges(false);
     setGenTask(null);
     setIsGenerating(false);
+    setPolishedContent(null);
+    setIsPolishing(false);
   }, [prompt.id, prompt.updatedAt]);
 
   // Track changes
@@ -185,6 +193,32 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handlePolish = async () => {
+    if (!onPolish || !content.trim()) return;
+    setIsPolishing(true);
+    setPolishedContent(null);
+    try {
+      const result = await onPolish(content);
+      setPolishedContent(result);
+    } catch (error) {
+      console.error('Polish failed:', error);
+      alert('润色失败: ' + (error as any).message);
+    } finally {
+      setIsPolishing(false);
+    }
+  };
+
+  const handleAcceptPolish = () => {
+    if (polishedContent) {
+      setContent(polishedContent);
+      setPolishedContent(null);
+    }
+  };
+
+  const handleRejectPolish = () => {
+    setPolishedContent(null);
   };
 
   const handleCopyImage = useCallback(async (imageSrc: string, type: 'ref' | 'preview') => {
@@ -515,7 +549,65 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
             className={`textarea h-48 ${format === 'code' ? 'code-editor font-mono' : ''}`}
             placeholder="输入提示词内容..."
           />
-          
+
+          {/* Polish Result */}
+          {polishedContent && (
+            <div className="mt-2 p-3 bg-slate-700/40 border border-primary-500/30 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-primary-400">✨ 润色结果</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleAcceptPolish}
+                    className="flex items-center gap-1 px-2 py-1 bg-green-600/80 hover:bg-green-600 rounded text-xs text-white transition-colors"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    采纳
+                  </button>
+                  <button
+                    onClick={handleRejectPolish}
+                    className="flex items-center gap-1 px-2 py-1 bg-slate-600 hover:bg-slate-500 rounded text-xs text-slate-200 transition-colors"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    放弃
+                  </button>
+                </div>
+              </div>
+              <p className="text-sm text-slate-200 whitespace-pre-wrap">{polishedContent}</p>
+            </div>
+          )}
+
+          {/* Action Bar: Polish + Generate */}
+          <div className="mt-2 flex items-center gap-2">
+            {polishEnabled && onPolish && (
+              <button
+                onClick={handlePolish}
+                disabled={isPolishing || !content.trim()}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:bg-slate-700 disabled:text-slate-500 rounded-lg text-xs text-white transition-colors"
+              >
+                {isPolishing ? (
+                  <>
+                    <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    润色中...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    AI 润色
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
           {apiConfig?.enabled && onGenerateImage && (
             <div className="mt-2 flex items-center justify-between bg-slate-700/30 p-2 rounded-lg border border-slate-700/50">
               <div className="flex items-center gap-2 overflow-hidden">
