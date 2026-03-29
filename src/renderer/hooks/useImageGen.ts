@@ -112,6 +112,16 @@ export function useImageGen() {
           }
         }
 
+        // Randomize seed on KSampler nodes to ensure unique outputs each run
+        for (const nodeId of Object.keys(workflow)) {
+          const node = workflow[nodeId];
+          if (node.class_type === 'KSampler' || node.class_type === 'KSamplerAdvanced') {
+            if (node.inputs && 'seed' in node.inputs) {
+              node.inputs.seed = Math.floor(Math.random() * 2 ** 32);
+            }
+          }
+        }
+
         url = `${config.apiUrl}/prompt`;
         body = { prompt: workflow };
         break;
