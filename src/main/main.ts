@@ -83,6 +83,35 @@ ipcMain.handle('select-image', async () => {
   return null;
 });
 
+// Save image to local file
+ipcMain.handle('save-image', async (_, imageSource: string) => {
+  const result = await dialog.showSaveDialog({
+    filters: [
+      { name: 'PNG Image', extensions: ['png'] },
+      { name: 'JPEG Image', extensions: ['jpg', 'jpeg'] },
+      { name: 'WebP Image', extensions: ['webp'] },
+    ]
+  });
+
+  if (result.canceled || !result.filePath) return false;
+
+  const fs = require('fs');
+  try {
+    if (imageSource.startsWith('data:')) {
+      const base64Data = imageSource.replace(/^data:image\/\w+;base64,/, '');
+      fs.writeFileSync(result.filePath, Buffer.from(base64Data, 'base64'));
+    } else {
+      const response = await fetch(imageSource);
+      if (!response.ok) return false;
+      const buffer = Buffer.from(await response.arrayBuffer());
+      fs.writeFileSync(result.filePath, buffer);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+});
+
 // Export prompts to file
 ipcMain.handle('export-prompts', async (_, data: string) => {
   const result = await dialog.showSaveDialog({

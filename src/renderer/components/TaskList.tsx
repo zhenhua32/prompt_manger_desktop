@@ -69,6 +69,22 @@ const TaskItem = React.memo(({ task, onRefresh, onDelete, onPreview, onSetAsPrev
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
+          {task.status === 'completed' && (task.resultImageUrl || task.resultImageBase64) && (
+            <button
+              onClick={async () => {
+                const src = task.resultImageUrl || task.resultImageBase64!;
+                if (window.electronAPI) {
+                  await window.electronAPI.saveImage(src);
+                }
+              }}
+              className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-green-400"
+              title="保存图片到本地"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </button>
+          )}
           {task.status === 'completed' && (task.resultImageUrl || task.resultImageBase64) && onSetAsPreview && (
             <button
               onClick={() => onSetAsPreview(task.resultImageUrl || task.resultImageBase64!)}

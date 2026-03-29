@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // File operations
   selectImage: () => ipcRenderer.invoke('select-image'),
+  saveImage: (imageSource: string) => ipcRenderer.invoke('save-image', imageSource),
   exportPrompts: (data: string) => ipcRenderer.invoke('export-prompts', data),
   importPrompts: () => ipcRenderer.invoke('import-prompts'),
   

@@ -108,6 +108,36 @@ electron_1.ipcMain.handle('select-image', async () => {
     }
     return null;
 });
+// Save image to local file
+electron_1.ipcMain.handle('save-image', async (_, imageSource) => {
+    const result = await electron_1.dialog.showSaveDialog({
+        filters: [
+            { name: 'PNG Image', extensions: ['png'] },
+            { name: 'JPEG Image', extensions: ['jpg', 'jpeg'] },
+            { name: 'WebP Image', extensions: ['webp'] },
+        ]
+    });
+    if (result.canceled || !result.filePath)
+        return false;
+    const fs = require('fs');
+    try {
+        if (imageSource.startsWith('data:')) {
+            const base64Data = imageSource.replace(/^data:image\/\w+;base64,/, '');
+            fs.writeFileSync(result.filePath, Buffer.from(base64Data, 'base64'));
+        }
+        else {
+            const response = await fetch(imageSource);
+            if (!response.ok)
+                return false;
+            const buffer = Buffer.from(await response.arrayBuffer());
+            fs.writeFileSync(result.filePath, buffer);
+        }
+        return true;
+    }
+    catch {
+        return false;
+    }
+});
 // Export prompts to file
 electron_1.ipcMain.handle('export-prompts', async (_, data) => {
     const result = await electron_1.dialog.showSaveDialog({
@@ -140,13 +170,17 @@ electron_1.ipcMain.handle('import-prompts', async () => {
 // Proxy fetch request to bypass CORS
 electron_1.ipcMain.handle('proxy-fetch', async (_, url, options) => {
     try {
-        // Determine if we should use net.fetch (Electron) or global fetch (Node)
-        // Using global fetch as it's standard in newer Node versions used by Electron
         const response = await fetch(url, options);
-        const contentType = response.headers.get('content-type');
+        const contentType = response.headers.get('content-type') || '';
         let data;
-        if (contentType && contentType.includes('application/json')) {
+        if (contentType.includes('application/json')) {
             data = await response.json();
+        }
+        else if (contentType.startsWith('image/')) {
+            // Return image as base64 data URL
+            const buffer = Buffer.from(await response.arrayBuffer());
+            const mimeType = contentType.split(';')[0].trim();
+            data = `data:${mimeType};base64,${buffer.toString('base64')}`;
         }
         else {
             data = await response.text();

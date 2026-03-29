@@ -8,6 +8,7 @@ electron_1.contextBridge.exposeInMainWorld('electronAPI', {
     storeDelete: (key) => electron_1.ipcRenderer.invoke('store-delete', key),
     // File operations
     selectImage: () => electron_1.ipcRenderer.invoke('select-image'),
+    saveImage: (imageSource) => electron_1.ipcRenderer.invoke('save-image', imageSource),
     exportPrompts: (data) => electron_1.ipcRenderer.invoke('export-prompts', data),
     importPrompts: () => electron_1.ipcRenderer.invoke('import-prompts'),
     // Network operations
