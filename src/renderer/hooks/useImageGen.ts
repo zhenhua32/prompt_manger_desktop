@@ -350,36 +350,19 @@ export function useImageGen() {
         return null; // Still processing
       }
 
-      // Fetch the actual image
+      // Build direct image URL
       const viewParams = new URLSearchParams({
         filename: imageFilename,
         subfolder: imageSubfolder || '',
         type: imageType || 'output',
       });
-      const imageResponse = await doFetch(`${config.apiUrl}/view?${viewParams.toString()}`);
+      const imageUrl = `${config.apiUrl}/view?${viewParams.toString()}`;
 
-      if (!imageResponse.ok) {
-        return {
-          id: internalId,
-          updates: {
-            status: 'failed' as ImageGenTaskStatus,
-            error: `获取图片失败 (${imageResponse.status})`,
-            updatedAt: new Date().toISOString(),
-          }
-        };
-      }
-
-      // imageResponse.data is a base64 data URL from proxy-fetch
       return {
         id: internalId,
         updates: {
           status: 'completed' as ImageGenTaskStatus,
-          resultImageBase64: typeof imageResponse.data === 'string' && imageResponse.data.startsWith('data:')
-            ? imageResponse.data
-            : undefined,
-          resultImageUrl: typeof imageResponse.data === 'string' && !imageResponse.data.startsWith('data:')
-            ? `${config.apiUrl}/view?${viewParams.toString()}`
-            : undefined,
+          resultImageUrl: imageUrl,
           updatedAt: new Date().toISOString(),
         }
       };
