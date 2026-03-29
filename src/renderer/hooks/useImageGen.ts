@@ -215,7 +215,7 @@ export function useImageGen() {
       status: 'pending',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      modelName: apiConfig.modelName,
+      modelName: apiConfig.provider === 'comfyui' ? 'ComfyUI' : apiConfig.modelName,
       params: mergedParams,
     };
 
