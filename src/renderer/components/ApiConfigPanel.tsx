@@ -3,7 +3,7 @@ import { ImageGenApiConfig, ImageGenProvider } from '../types';
 
 const PROVIDER_PRESETS: Record<ImageGenProvider, { label: string; description: string; defaultUrl: string; defaultModel: string; needsKey: boolean }> = {
   openai: { label: 'OpenAI 兼容', description: '支持 OpenAI、LocalAI、vLLM 等兼容接口', defaultUrl: '', defaultModel: '', needsKey: true },
-  comfyui: { label: 'ComfyUI', description: '需安装 comfyui-openai-api 插件', defaultUrl: 'http://localhost:8188', defaultModel: 'default', needsKey: false },
+  comfyui: { label: 'ComfyUI', description: '通过原生 API 接入，需导出工作流', defaultUrl: 'http://localhost:8188', defaultModel: '', needsKey: false },
   custom: { label: '自定义', description: '自定义 API 端点和请求格式', defaultUrl: '', defaultModel: '', needsKey: false },
 };
 
@@ -106,6 +106,8 @@ const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ config, onSave }) => {
       let testUrl: string;
       switch (provider) {
         case 'comfyui':
+          testUrl = `${formData.apiUrl}/system_stats`;
+          break;
         case 'openai':
         case 'custom':
         default:
@@ -186,7 +188,7 @@ const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ config, onSave }) => {
           <label className="block text-sm font-medium text-slate-300 mb-1.5">
             API 地址
             {(formData.provider || 'openai') === 'comfyui' && (
-              <span className="text-slate-500 font-normal ml-2">（需安装 comfyui-openai-api 插件）</span>
+              <span className="text-slate-500 font-normal ml-2">（ComfyUI 服务地址）</span>
             )}
             {(formData.provider || 'openai') !== 'comfyui' && (
               <span className="text-slate-500 font-normal ml-2">（不含 /v1/images/generations 后缀）</span>
@@ -226,7 +228,8 @@ const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ config, onSave }) => {
           </div>
         </div>
 
-        {/* Model Name */}
+        {/* Model Name — hidden for ComfyUI */}
+        {(formData.provider || 'openai') !== 'comfyui' && (
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-1.5">
             模型名称
@@ -239,6 +242,70 @@ const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ config, onSave }) => {
             className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
+        )}
+
+        {/* ComfyUI Workflow Config */}
+        {(formData.provider || 'openai') === 'comfyui' && (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1.5">
+              工作流 JSON
+              <span className="text-slate-500 font-normal ml-2">（从 ComfyUI 菜单 File → Export (API) 导出）</span>
+            </label>
+            <textarea
+              value={formData.comfyuiWorkflow || ''}
+              onChange={(e) => handleChange('comfyuiWorkflow', e.target.value)}
+              placeholder={'{\n  "3": { "class_type": "KSampler", ... },\n  "6": { "class_type": "CLIPTextEncode", "inputs": { "text": "正向提示词" } },\n  ...\n}'}
+              rows={8}
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y font-mono"
+            />
+            {formData.comfyuiWorkflow && (() => {
+              try {
+                const wf = JSON.parse(formData.comfyuiWorkflow);
+                const nodes = Object.entries(wf).map(([id, node]: [string, any]) => ({
+                  id,
+                  type: node.class_type || '未知',
+                }));
+                return (
+                  <div className="mt-2 text-xs text-slate-500">
+                    检测到 {nodes.length} 个节点：{nodes.map(n => `${n.id}(${n.type})`).join('、')}
+                  </div>
+                );
+              } catch {
+                return <div className="mt-1 text-xs text-red-400">JSON 格式错误</div>;
+              }
+            })()}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                正向提示词节点 ID
+                <span className="text-slate-500 font-normal ml-2">（必填）</span>
+              </label>
+              <input
+                type="text"
+                value={formData.comfyuiPositiveNodeId || ''}
+                onChange={(e) => handleChange('comfyuiPositiveNodeId', e.target.value)}
+                placeholder="例如: 6"
+                className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                负向提示词节点 ID
+                <span className="text-slate-500 font-normal ml-2">（可选）</span>
+              </label>
+              <input
+                type="text"
+                value={formData.comfyuiNegativeNodeId || ''}
+                onChange={(e) => handleChange('comfyuiNegativeNodeId', e.target.value)}
+                placeholder="例如: 7"
+                className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </>
+        )}
 
         {/* Custom Headers */}
         <div>

@@ -40,4 +40,5 @@
 
 6. **连接本地生图模型**
     - 支持连接用户本地部署的生图模型以便直接在应用中测试提示词。
+    - comfyui 通过 https://github.com/Comfy-Org/ComfyUI/blob/master/script_examples/basic_api_example.py 的方式实现接入生图模型.
     

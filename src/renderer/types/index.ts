@@ -117,6 +117,10 @@ export interface ImageGenApiConfig {
   provider: ImageGenProvider;
   customHeaders?: Record<string, string>;
   defaultParams?: ImageGenParams;
+  // ComfyUI native API fields
+  comfyuiWorkflow?: string;          // Workflow JSON exported from ComfyUI (File -> Export API)
+  comfyuiPositiveNodeId?: string;    // Node ID for positive prompt (e.g. "6")
+  comfyuiNegativeNodeId?: string;    // Node ID for negative prompt (e.g. "7")
 }
 
 export type ImageGenTaskStatus = 'pending' | 'processing' | 'completed' | 'failed';

@@ -119,14 +119,17 @@ ipcMain.handle('import-prompts', async () => {
 // Proxy fetch request to bypass CORS
 ipcMain.handle('proxy-fetch', async (_, url: string, options: any) => {
   try {
-    // Determine if we should use net.fetch (Electron) or global fetch (Node)
-    // Using global fetch as it's standard in newer Node versions used by Electron
     const response = await fetch(url, options);
     
-    const contentType = response.headers.get('content-type');
+    const contentType = response.headers.get('content-type') || '';
     let data;
-    if (contentType && contentType.includes('application/json')) {
+    if (contentType.includes('application/json')) {
       data = await response.json();
+    } else if (contentType.startsWith('image/')) {
+      // Return image as base64 data URL
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const mimeType = contentType.split(';')[0].trim();
+      data = `data:${mimeType};base64,${buffer.toString('base64')}`;
     } else {
       data = await response.text();
     }
