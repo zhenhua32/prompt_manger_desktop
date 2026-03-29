@@ -98,7 +98,7 @@ export interface SearchFilter {
 }
 
 // Image generation API types
-export type ImageGenProvider = 'openai' | 'a1111' | 'comfyui' | 'custom';
+export type ImageGenProvider = 'openai' | 'comfyui' | 'custom';
 
 export interface ImageGenParams {
   width?: number;

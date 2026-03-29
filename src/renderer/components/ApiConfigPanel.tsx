@@ -3,7 +3,6 @@ import { ImageGenApiConfig, ImageGenProvider } from '../types';
 
 const PROVIDER_PRESETS: Record<ImageGenProvider, { label: string; description: string; defaultUrl: string; defaultModel: string; needsKey: boolean }> = {
   openai: { label: 'OpenAI 兼容', description: '支持 OpenAI、LocalAI、vLLM 等兼容接口', defaultUrl: '', defaultModel: '', needsKey: true },
-  a1111: { label: 'SD WebUI (A1111/Forge)', description: '支持 Stable Diffusion WebUI、SD.Next、Forge（需启用 --api）', defaultUrl: 'http://localhost:7860', defaultModel: '', needsKey: false },
   comfyui: { label: 'ComfyUI', description: '需安装 comfyui-openai-api 插件', defaultUrl: 'http://localhost:8188', defaultModel: 'default', needsKey: false },
   custom: { label: '自定义', description: '自定义 API 端点和请求格式', defaultUrl: '', defaultModel: '', needsKey: false },
 };
@@ -106,9 +105,6 @@ const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ config, onSave }) => {
       const provider = formData.provider || 'openai';
       let testUrl: string;
       switch (provider) {
-        case 'a1111':
-          testUrl = `${formData.apiUrl}/sdapi/v1/sd-models`;
-          break;
         case 'comfyui':
         case 'openai':
         case 'custom':
@@ -189,13 +185,10 @@ const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ config, onSave }) => {
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-1.5">
             API 地址
-            {(formData.provider || 'openai') === 'a1111' && (
-              <span className="text-slate-500 font-normal ml-2">（WebUI 地址，启动时需加 --api 参数）</span>
-            )}
             {(formData.provider || 'openai') === 'comfyui' && (
               <span className="text-slate-500 font-normal ml-2">（需安装 comfyui-openai-api 插件）</span>
             )}
-            {(formData.provider || 'openai') !== 'a1111' && (formData.provider || 'openai') !== 'comfyui' && (
+            {(formData.provider || 'openai') !== 'comfyui' && (
               <span className="text-slate-500 font-normal ml-2">（不含 /v1/images/generations 后缀）</span>
             )}
           </label>
@@ -237,9 +230,6 @@ const ApiConfigPanel: React.FC<ApiConfigPanelProps> = ({ config, onSave }) => {
         <div>
           <label className="block text-sm font-medium text-slate-300 mb-1.5">
             模型名称
-            {(formData.provider || 'openai') === 'a1111' && (
-              <span className="text-slate-500 font-normal ml-2">（checkpoint 文件名，留空使用当前加载的模型）</span>
-            )}
           </label>
           <input
             type="text"

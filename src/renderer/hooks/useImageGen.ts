@@ -88,20 +88,6 @@ export function useImageGen() {
     let body: any;
 
     switch (provider) {
-      case 'a1111': {
-        url = `${config.apiUrl}/sdapi/v1/txt2img`;
-        body = {
-          prompt,
-          negative_prompt: negativePrompt || mergedParams.negativePrompt || '',
-          width: mergedParams.width || 512,
-          height: mergedParams.height || 512,
-          steps: mergedParams.steps || 20,
-          cfg_scale: mergedParams.cfgScale || 7,
-          ...(mergedParams.sampler ? { sampler_name: mergedParams.sampler } : {}),
-          ...(config.modelName ? { override_settings: { sd_model_checkpoint: config.modelName } } : {}),
-        };
-        break;
-      }
       case 'comfyui': {
         url = `${config.apiUrl}/v1/images/generations`;
         body = {
@@ -146,16 +132,6 @@ export function useImageGen() {
     error?: string;
   } => {
     switch (provider) {
-      case 'a1111': {
-        // A1111 returns synchronously with base64 images
-        if (data.images && data.images.length > 0) {
-          return {
-            status: 'completed',
-            imageBase64: `data:image/png;base64,${data.images[0]}`,
-          };
-        }
-        return { status: 'failed', error: 'A1111 返回无图片数据' };
-      }
       default: {
         // OpenAI / ComfyUI / Custom — existing logic
         if (data.task_id) {
