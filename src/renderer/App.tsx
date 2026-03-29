@@ -339,9 +339,13 @@ function App() {
               ) : (
                 <TaskList
                   tasks={tasks}
+                  prompts={prompts}
                   onRefresh={refreshTask}
                   onDelete={deleteTask}
                   onClearFinished={clearFinishedTasks}
+                  onSetPreviewForPrompt={(promptId, imageUrl) => {
+                    updatePrompt(promptId, { previewImage: imageUrl });
+                  }}
                 />
               )}
             </div>
