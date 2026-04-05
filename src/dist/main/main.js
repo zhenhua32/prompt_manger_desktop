@@ -224,7 +224,42 @@ electron_1.ipcMain.handle('save-image', async (_, imageSource) => {
         return false;
     }
 });
-// Export prompts to file
+// Helper: read an app-image:// ref back as a data URL
+function appImageToDataUrl(imageRef) {
+    if (!imageRef || !imageRef.startsWith('app-image://'))
+        return null;
+    const filename = path.basename(imageRef.replace('app-image://', ''));
+    const filePath = path.join(imagesDir, filename);
+    if (!path.resolve(filePath).startsWith(path.resolve(imagesDir)))
+        return null;
+    try {
+        if (!fs.existsSync(filePath))
+            return null;
+        const buf = fs.readFileSync(filePath);
+        const ext = path.extname(filename).replace('.', '').toLowerCase();
+        const mime = ext === 'jpg' ? 'image/jpeg' : `image/${ext || 'png'}`;
+        return `data:${mime};base64,${buf.toString('base64')}`;
+    }
+    catch {
+        return null;
+    }
+}
+// Helper: save a base64 data URL to images dir, return app-image:// ref
+function dataUrlToAppImage(dataUrl) {
+    const match = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/s);
+    if (!match)
+        return null;
+    const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+    const filename = `${crypto.randomUUID()}.${ext}`;
+    try {
+        fs.writeFileSync(path.join(imagesDir, filename), Buffer.from(match[2], 'base64'));
+        return `app-image://${filename}`;
+    }
+    catch {
+        return null;
+    }
+}
+// Export prompts to file (convert app-image:// refs to embedded base64)
 electron_1.ipcMain.handle('export-prompts', async (_, data) => {
     const result = await electron_1.dialog.showSaveDialog({
         filters: [
@@ -232,12 +267,28 @@ electron_1.ipcMain.handle('export-prompts', async (_, data) => {
         ]
     });
     if (!result.canceled && result.filePath) {
-        fs.writeFileSync(result.filePath, data, 'utf-8');
+        try {
+            const parsed = JSON.parse(data);
+            if (Array.isArray(parsed.prompts)) {
+                for (const p of parsed.prompts) {
+                    if (p.previewImage?.startsWith('app-image://')) {
+                        p.previewImage = appImageToDataUrl(p.previewImage) || p.previewImage;
+                    }
+                    if (p.referenceImage?.startsWith('app-image://')) {
+                        p.referenceImage = appImageToDataUrl(p.referenceImage) || p.referenceImage;
+                    }
+                }
+            }
+            fs.writeFileSync(result.filePath, JSON.stringify(parsed, null, 2), 'utf-8');
+        }
+        catch {
+            fs.writeFileSync(result.filePath, data, 'utf-8');
+        }
         return true;
     }
     return false;
 });
-// Import prompts from file
+// Import prompts from file (convert embedded base64 images to app-image:// refs)
 electron_1.ipcMain.handle('import-prompts', async () => {
     const result = await electron_1.dialog.showOpenDialog({
         properties: ['openFile'],
@@ -246,8 +297,19 @@ electron_1.ipcMain.handle('import-prompts', async () => {
         ]
     });
     if (!result.canceled && result.filePaths.length > 0) {
-        const data = fs.readFileSync(result.filePaths[0], 'utf-8');
-        return JSON.parse(data);
+        const raw = fs.readFileSync(result.filePaths[0], 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.prompts)) {
+            for (const p of parsed.prompts) {
+                if (p.previewImage?.startsWith('data:image/')) {
+                    p.previewImage = dataUrlToAppImage(p.previewImage) || p.previewImage;
+                }
+                if (p.referenceImage?.startsWith('data:image/')) {
+                    p.referenceImage = dataUrlToAppImage(p.referenceImage) || p.referenceImage;
+                }
+            }
+        }
+        return parsed;
     }
     return null;
 });
