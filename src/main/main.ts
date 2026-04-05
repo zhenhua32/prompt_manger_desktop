@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, net } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, protocol, net, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
@@ -153,6 +153,11 @@ ipcMain.handle('delete-image-file', async (_, imageRef: string) => {
   } catch {
     return false;
   }
+});
+
+// Open images folder in system file explorer
+ipcMain.handle('open-images-folder', async () => {
+  shell.openPath(imagesDir);
 });
 
 // Save image to local file

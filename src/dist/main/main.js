@@ -180,6 +180,10 @@ electron_1.ipcMain.handle('delete-image-file', async (_, imageRef) => {
         return false;
     }
 });
+// Open images folder in system file explorer
+electron_1.ipcMain.handle('open-images-folder', async () => {
+    electron_1.shell.openPath(imagesDir);
+});
 // Save image to local file
 electron_1.ipcMain.handle('save-image', async (_, imageSource) => {
     const result = await electron_1.dialog.showSaveDialog({

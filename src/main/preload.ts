@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Image file storage (base64 → local file → app-image:// ref)
   storeImageFile: (dataUrl: string) => ipcRenderer.invoke('store-image-file', dataUrl),
   deleteImageFile: (imageRef: string) => ipcRenderer.invoke('delete-image-file', imageRef),
+  openImagesFolder: () => ipcRenderer.invoke('open-images-folder'),
   
   // Network operations
   proxyFetch: (url: string, options: any) => ipcRenderer.invoke('proxy-fetch', url, options),
