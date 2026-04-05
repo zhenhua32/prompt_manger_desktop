@@ -370,7 +370,7 @@ const ABTestPanel: React.FC<ABTestPanelProps> = ({
                   ) : variant.resultImage ? (
                     <img
                       src={variant.resultImage}
-                      className="max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity object-contain"
+                      className="w-full h-full object-contain rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
                       onClick={() => setLightboxImage(variant.resultImage!)}
                       alt={`变体 ${variant.label} 生成结果`}
                     />
