@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { ImageGenTask, Prompt } from '../types';
 
 interface TaskProps {
@@ -37,7 +37,7 @@ const TaskItem = React.memo(({ task, onRefresh, onDelete, onPreview, onSetAsPrev
           {getStatusBadge(task.status)}
           <span className="text-xs text-slate-500">{new Date(task.createdAt).toLocaleString()}</span>
         </div>
-        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-75">
           {task.status === 'processing' && (
             <button 
               onClick={() => onRefresh(task)}
@@ -171,6 +171,19 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, prompts, onRefresh, onDelete
   const [pickingPreviewFor, setPickingPreviewFor] = React.useState<string | null>(null);
   const [promptSearch, setPromptSearch] = React.useState('');
 
+  // Stable callback for setting preview image — prevents React.memo invalidation on TaskItems
+  const handleSetAsPreview = useCallback((imageUrl: string) => {
+    setPickingPreviewFor(imageUrl);
+  }, []);
+
+  // Memoize filtered prompts list for the picker modal
+  const filteredPrompts = useMemo(() => {
+    if (!prompts) return [];
+    if (!promptSearch) return prompts;
+    const q = promptSearch.toLowerCase();
+    return prompts.filter(p => p.title.toLowerCase().includes(q) || p.content.toLowerCase().includes(q));
+  }, [prompts, promptSearch]);
+
   // Memoize sorted tasks to prevent re-sorting on every render if tasks hasn't changed
   const sortedTasks = useMemo(() => {
     return [...tasks].sort((a, b) => 
@@ -210,7 +223,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, prompts, onRefresh, onDelete
             onRefresh={onRefresh} 
             onDelete={onDelete}
             onPreview={setPreviewImage}
-            onSetAsPreview={onSetPreviewForPrompt ? (imageUrl) => setPickingPreviewFor(imageUrl) : undefined}
+            onSetAsPreview={onSetPreviewForPrompt ? handleSetAsPreview : undefined}
           />
         ))}
       </div>
@@ -218,7 +231,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, prompts, onRefresh, onDelete
       {/* Prompt Picker Modal */}
       {pickingPreviewFor && prompts && onSetPreviewForPrompt && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
           onClick={() => { setPickingPreviewFor(null); setPromptSearch(''); }}
         >
           <div
@@ -247,9 +260,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, prompts, onRefresh, onDelete
               />
             </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              {prompts
-                .filter(p => !promptSearch || p.title.toLowerCase().includes(promptSearch.toLowerCase()) || p.content.toLowerCase().includes(promptSearch.toLowerCase()))
-                .map(p => (
+              {filteredPrompts.map(p => (
                   <button
                     key={p.id}
                     onClick={() => {
@@ -261,7 +272,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, prompts, onRefresh, onDelete
                   >
                     <div className="w-8 h-8 flex-shrink-0 rounded bg-slate-900 border border-slate-700 overflow-hidden flex items-center justify-center">
                       {p.previewImage ? (
-                        <img src={p.previewImage} alt="" className="w-full h-full object-cover" />
+                        <img src={p.previewImage} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                       ) : (
                         <span className="text-slate-600 text-xs">无</span>
                       )}
@@ -272,7 +283,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, prompts, onRefresh, onDelete
                     </div>
                   </button>
                 ))}
-              {prompts.filter(p => !promptSearch || p.title.toLowerCase().includes(promptSearch.toLowerCase()) || p.content.toLowerCase().includes(promptSearch.toLowerCase())).length === 0 && (
+              {filteredPrompts.length === 0 && (
                 <p className="text-center text-sm text-slate-500 py-4">无匹配的提示词</p>
               )}
             </div>
