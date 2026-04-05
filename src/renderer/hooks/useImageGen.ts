@@ -360,7 +360,7 @@ export function useImageGen() {
         return null; // Still processing
       }
 
-      // Build direct image URL
+      // Build direct image URL and fetch as base64 to persist locally
       const viewParams = new URLSearchParams({
         filename: imageFilename,
         subfolder: imageSubfolder || '',
@@ -368,11 +368,25 @@ export function useImageGen() {
       });
       const imageUrl = `${config.apiUrl}/view?${viewParams.toString()}`;
 
+      // Download image and convert to base64 so it survives ComfyUI shutdown
+      let resultImageBase64: string | undefined;
+      try {
+        const imgResponse = await doFetch(imageUrl);
+        if (imgResponse.ok && typeof imgResponse.data === 'string' && imgResponse.data.startsWith('data:image/')) {
+          resultImageBase64 = imgResponse.data;
+        }
+      } catch (e) {
+        console.warn('[Poll ComfyUI] Failed to download image for local cache:', e);
+      }
+
       return {
         id: internalId,
         updates: {
           status: 'completed' as ImageGenTaskStatus,
-          resultImageUrl: imageUrl,
+          // Store base64 for offline access; keep URL as fallback
+          ...(resultImageBase64
+            ? { resultImageBase64 }
+            : { resultImageUrl: imageUrl }),
           updatedAt: new Date().toISOString(),
         }
       };
