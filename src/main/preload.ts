@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportPrompts: (data: string) => ipcRenderer.invoke('export-prompts', data),
   importPrompts: () => ipcRenderer.invoke('import-prompts'),
   
+  // Image file storage (base64 → local file → app-image:// ref)
+  storeImageFile: (dataUrl: string) => ipcRenderer.invoke('store-image-file', dataUrl),
+  deleteImageFile: (imageRef: string) => ipcRenderer.invoke('delete-image-file', imageRef),
+  
   // Network operations
   proxyFetch: (url: string, options: any) => ipcRenderer.invoke('proxy-fetch', url, options),
 });

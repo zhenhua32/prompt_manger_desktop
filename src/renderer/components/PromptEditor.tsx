@@ -161,9 +161,14 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
         const file = item.getAsFile();
         if (file) {
           const reader = new FileReader();
-          reader.onload = (event) => {
+          reader.onload = async (event) => {
             const dataUrl = event.target?.result as string;
-            if (dataUrl) {
+            if (dataUrl && window.electronAPI?.storeImageFile) {
+              const imageRef = await window.electronAPI.storeImageFile(dataUrl);
+              if (imageRef) {
+                onSave({ referenceImage: imageRef });
+              }
+            } else if (dataUrl) {
               onSave({ referenceImage: dataUrl });
             }
           };

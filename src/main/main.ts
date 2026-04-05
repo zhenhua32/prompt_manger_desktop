@@ -1,10 +1,19 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, protocol, net } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as crypto from 'crypto';
+import { pathToFileURL } from 'url';
 import Store from 'electron-store';
 
 const store = new Store();
 
 let mainWindow: BrowserWindow | null = null;
+let imagesDir: string;
+
+// Register custom protocol scheme BEFORE app.ready
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'app-image', privileges: { secure: true, supportFetchAPI: true, corsEnabled: true } }
+]);
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -33,7 +42,26 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  // Initialize images directory
+  imagesDir = path.join(app.getPath('userData'), 'images');
+  if (!fs.existsSync(imagesDir)) {
+    fs.mkdirSync(imagesDir, { recursive: true });
+  }
+
+  // Register protocol handler to serve local images
+  protocol.handle('app-image', (request) => {
+    const filename = decodeURIComponent(request.url.replace('app-image://', ''));
+    const filePath = path.join(imagesDir, path.basename(filename));
+    // Security: ensure resolved path is within imagesDir
+    if (!path.resolve(filePath).startsWith(path.resolve(imagesDir))) {
+      return new Response('Forbidden', { status: 403 });
+    }
+    return net.fetch(pathToFileURL(filePath).href);
+  });
+
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -62,7 +90,7 @@ ipcMain.handle('store-delete', (_, key: string) => {
   return true;
 });
 
-// File dialog for image selection - convert to base64 data URL
+// File dialog for image selection - save to local file, return app-image:// ref
 ipcMain.handle('select-image', async () => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile'],
@@ -72,15 +100,59 @@ ipcMain.handle('select-image', async () => {
   });
   
   if (!result.canceled && result.filePaths.length > 0) {
-    const fs = require('fs');
     const filePath = result.filePaths[0];
-    const ext = filePath.split('.').pop()?.toLowerCase() || 'png';
-    const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
-    const imageBuffer = fs.readFileSync(filePath);
-    const base64 = imageBuffer.toString('base64');
-    return `data:${mimeType};base64,${base64}`;
+    const ext = (filePath.split('.').pop()?.toLowerCase() || 'png').replace('jpeg', 'jpg');
+    const filename = `${crypto.randomUUID()}.${ext}`;
+    const destPath = path.join(imagesDir, filename);
+    fs.copyFileSync(filePath, destPath);
+    return `app-image://${filename}`;
   }
   return null;
+});
+
+// Store a base64 data URL or download a remote URL to local file
+ipcMain.handle('store-image-file', async (_, dataUrl: string) => {
+  if (!dataUrl) return null;
+
+  if (dataUrl.startsWith('data:')) {
+    const match = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/s);
+    if (!match) return null;
+    const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+    const filename = `${crypto.randomUUID()}.${ext}`;
+    fs.writeFileSync(path.join(imagesDir, filename), Buffer.from(match[2], 'base64'));
+    return `app-image://${filename}`;
+  }
+
+  if (dataUrl.startsWith('http://') || dataUrl.startsWith('https://')) {
+    try {
+      const response = await fetch(dataUrl);
+      if (!response.ok) return null;
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const contentType = response.headers.get('content-type') || 'image/png';
+      const ext = (contentType.split('/')[1]?.split(';')[0] || 'png').replace('jpeg', 'jpg');
+      const filename = `${crypto.randomUUID()}.${ext}`;
+      fs.writeFileSync(path.join(imagesDir, filename), buffer);
+      return `app-image://${filename}`;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+});
+
+// Delete a stored image file
+ipcMain.handle('delete-image-file', async (_, imageRef: string) => {
+  if (!imageRef || !imageRef.startsWith('app-image://')) return false;
+  const filename = path.basename(imageRef.replace('app-image://', ''));
+  const filePath = path.join(imagesDir, filename);
+  if (!path.resolve(filePath).startsWith(path.resolve(imagesDir))) return false;
+  try {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 });
 
 // Save image to local file
@@ -95,11 +167,19 @@ ipcMain.handle('save-image', async (_, imageSource: string) => {
 
   if (result.canceled || !result.filePath) return false;
 
-  const fs = require('fs');
   try {
     if (imageSource.startsWith('data:')) {
       const base64Data = imageSource.replace(/^data:image\/\w+;base64,/, '');
       fs.writeFileSync(result.filePath, Buffer.from(base64Data, 'base64'));
+    } else if (imageSource.startsWith('app-image://')) {
+      // Copy from our local store
+      const filename = path.basename(imageSource.replace('app-image://', ''));
+      const srcPath = path.join(imagesDir, filename);
+      if (fs.existsSync(srcPath)) {
+        fs.copyFileSync(srcPath, result.filePath);
+      } else {
+        return false;
+      }
     } else {
       const response = await fetch(imageSource);
       if (!response.ok) return false;
@@ -121,7 +201,6 @@ ipcMain.handle('export-prompts', async (_, data: string) => {
   });
   
   if (!result.canceled && result.filePath) {
-    const fs = require('fs');
     fs.writeFileSync(result.filePath, data, 'utf-8');
     return true;
   }
@@ -138,7 +217,6 @@ ipcMain.handle('import-prompts', async () => {
   });
   
   if (!result.canceled && result.filePaths.length > 0) {
-    const fs = require('fs');
     const data = fs.readFileSync(result.filePaths[0], 'utf-8');
     return JSON.parse(data);
   }

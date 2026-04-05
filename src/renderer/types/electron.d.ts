@@ -10,6 +10,8 @@ declare global {
       saveImage: (imageSource: string) => Promise<boolean>;
       exportPrompts: (data: string) => Promise<boolean>;
       importPrompts: () => Promise<any>;
+      storeImageFile: (dataUrl: string) => Promise<string | null>;
+      deleteImageFile: (imageRef: string) => Promise<boolean>;
       proxyFetch: (url: string, options?: any) => Promise<{
         ok: boolean;
         status: number;

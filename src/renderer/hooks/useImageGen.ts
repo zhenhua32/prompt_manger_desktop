@@ -44,7 +44,33 @@ export function useImageGen() {
             window.electronAPI.storeGet(STORAGE_KEYS.TASKS),
           ]);
           if (storedConfig) setApiConfig(storedConfig);
-          if (storedTasks) setTasks(storedTasks);
+          if (storedTasks) {
+            // Migrate existing base64 task images to files
+            if (window.electronAPI.storeImageFile) {
+              let changed = false;
+              const migrated = await Promise.all(
+                storedTasks.map(async (t: ImageGenTask) => {
+                  if (t.resultImageBase64?.startsWith('data:')) {
+                    const ref = await window.electronAPI.storeImageFile(t.resultImageBase64);
+                    if (ref) {
+                      changed = true;
+                      return { ...t, resultImageBase64: ref };
+                    }
+                  }
+                  return t;
+                })
+              );
+              if (changed) {
+                console.log('[Migration] Converted task base64 images to file references');
+                setTasks(migrated);
+                await window.electronAPI.storeSet(STORAGE_KEYS.TASKS, migrated);
+              } else {
+                setTasks(storedTasks);
+              }
+            } else {
+              setTasks(storedTasks);
+            }
+          }
         }
       } catch (error) {
         console.error('Failed to load image gen data:', error);
@@ -265,7 +291,15 @@ export function useImageGen() {
       task.taskId = parsed.taskId || task.id;
       task.status = parsed.status;
       if (parsed.imageUrl) task.resultImageUrl = parsed.imageUrl;
-      if (parsed.imageBase64) task.resultImageBase64 = parsed.imageBase64;
+      // Save base64 result to file if available
+      if (parsed.imageBase64) {
+        if (window.electronAPI?.storeImageFile) {
+          const ref = await window.electronAPI.storeImageFile(parsed.imageBase64);
+          task.resultImageBase64 = ref || parsed.imageBase64;
+        } else {
+          task.resultImageBase64 = parsed.imageBase64;
+        }
+      }
 
       task.updatedAt = new Date().toISOString();
       setTasks(prev => {
@@ -368,12 +402,17 @@ export function useImageGen() {
       });
       const imageUrl = `${config.apiUrl}/view?${viewParams.toString()}`;
 
-      // Download image and convert to base64 so it survives ComfyUI shutdown
-      let resultImageBase64: string | undefined;
+      // Download image and save to local file store
+      let resultImageRef: string | undefined;
       try {
         const imgResponse = await doFetch(imageUrl);
         if (imgResponse.ok && typeof imgResponse.data === 'string' && imgResponse.data.startsWith('data:image/')) {
-          resultImageBase64 = imgResponse.data;
+          // Save base64 to file for persistent storage
+          if (window.electronAPI?.storeImageFile) {
+            resultImageRef = (await window.electronAPI.storeImageFile(imgResponse.data)) || undefined;
+          } else {
+            resultImageRef = imgResponse.data;
+          }
         }
       } catch (e) {
         console.warn('[Poll ComfyUI] Failed to download image for local cache:', e);
@@ -383,9 +422,9 @@ export function useImageGen() {
         id: internalId,
         updates: {
           status: 'completed' as ImageGenTaskStatus,
-          // Store base64 for offline access; keep URL as fallback
-          ...(resultImageBase64
-            ? { resultImageBase64 }
+          // Use file reference for persistent offline access
+          ...(resultImageRef
+            ? { resultImageBase64: resultImageRef }
             : { resultImageUrl: imageUrl }),
           updatedAt: new Date().toISOString(),
         }
@@ -474,6 +513,12 @@ export function useImageGen() {
           newStatus = 'failed';
           error = data.output?.message || '生成失败';
         }
+      }
+
+      // Save any base64 result to file before returning
+      if (resultBase64 && window.electronAPI?.storeImageFile) {
+        const ref = await window.electronAPI.storeImageFile(resultBase64);
+        if (ref) resultBase64 = ref;
       }
 
       // Return update object instead of setting state directly

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Prompt, Category, WordItem, WordCategory, Template, SearchFilter } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { defaultCategories, defaultWordLibrary, defaultWordCategories } from '../data/defaults';
@@ -20,6 +20,70 @@ export function usePrompts() {
   const [loading, setLoading] = useState(true);
   const [searchFilter, setSearchFilter] = useState<SearchFilter>({ query: '' });
 
+  // --- Debounced persistence ---
+  const isLoadedRef = useRef(false);
+  const promptsRef = useRef<Prompt[]>([]);
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // Keep promptsRef in sync for flush-on-unmount
+  useEffect(() => { promptsRef.current = prompts; }, [prompts]);
+
+  /** Schedule a debounced save for a given storage key */
+  const debouncedSave = useCallback((key: string, getData: () => any, delay = 500) => {
+    if (saveTimers.current[key]) clearTimeout(saveTimers.current[key]);
+    saveTimers.current[key] = setTimeout(() => {
+      window.electronAPI?.storeSet(key, getData()).catch(console.error);
+    }, delay);
+  }, []);
+
+  // Flush all pending saves on unmount (prevents data loss on app close)
+  useEffect(() => {
+    return () => {
+      Object.values(saveTimers.current).forEach(clearTimeout);
+      // Synchronously flush prompts (most critical data)
+      if (isLoadedRef.current) {
+        window.electronAPI?.storeSet(STORAGE_KEYS.PROMPTS, promptsRef.current).catch(console.error);
+      }
+    };
+  }, []);
+
+  // Debounced effect: persist prompts whenever they change (after initial load)
+  useEffect(() => {
+    if (!isLoadedRef.current) return;
+    debouncedSave(STORAGE_KEYS.PROMPTS, () => prompts);
+  }, [prompts, debouncedSave]);
+
+  // --- Migrate existing base64 images to file system ---
+  const migrateBase64Images = useCallback(async (loadedPrompts: Prompt[]): Promise<Prompt[]> => {
+    if (!window.electronAPI?.storeImageFile) return loadedPrompts;
+
+    let changed = false;
+    const migrated = await Promise.all(
+      loadedPrompts.map(async (p) => {
+        let updated = p;
+        if (p.previewImage?.startsWith('data:')) {
+          const ref = await window.electronAPI.storeImageFile(p.previewImage);
+          if (ref) {
+            updated = { ...updated, previewImage: ref };
+            changed = true;
+          }
+        }
+        if (p.referenceImage?.startsWith('data:')) {
+          const ref = await window.electronAPI.storeImageFile(p.referenceImage);
+          if (ref) {
+            updated = { ...updated, referenceImage: ref };
+            changed = true;
+          }
+        }
+        return updated;
+      })
+    );
+    if (changed) {
+      console.log('[Migration] Converted base64 images to file references');
+    }
+    return migrated;
+  }, []);
+
   // Load data from storage
   useEffect(() => {
     const loadData = async () => {
@@ -39,7 +103,20 @@ export function usePrompts() {
             window.electronAPI.storeGet(STORAGE_KEYS.TEMPLATES),
           ]);
 
-          if (storedPrompts) setPrompts(storedPrompts);
+          if (storedPrompts) {
+            // Migrate base64 images to file system (one-time)
+            const hasBase64 = storedPrompts.some(
+              (p: Prompt) => p.previewImage?.startsWith('data:') || p.referenceImage?.startsWith('data:')
+            );
+            if (hasBase64) {
+              const migrated = await migrateBase64Images(storedPrompts);
+              setPrompts(migrated);
+              // Persist migrated data immediately (not debounced)
+              await window.electronAPI.storeSet(STORAGE_KEYS.PROMPTS, migrated);
+            } else {
+              setPrompts(storedPrompts);
+            }
+          }
           if (storedCategories) setCategories(storedCategories);
           if (storedWordLibrary) setWordLibrary(storedWordLibrary);
           if (storedWordCategories) setWordCategories(storedWordCategories);
@@ -49,19 +126,17 @@ export function usePrompts() {
         console.error('Failed to load data:', error);
       } finally {
         setLoading(false);
+        // Allow debounced saves only after initial load completes
+        requestAnimationFrame(() => { isLoadedRef.current = true; });
       }
     };
 
     loadData();
-  }, []);
+  }, [migrateBase64Images]);
 
-  // Save prompts - update UI immediately, persist asynchronously
+  // Save prompts - update UI immediately, persist via debounced effect
   const savePrompts = useCallback((newPrompts: Prompt[]) => {
     setPrompts(newPrompts);
-    // Persist to storage asynchronously without blocking UI
-    if (window.electronAPI) {
-      window.electronAPI.storeSet(STORAGE_KEYS.PROMPTS, newPrompts).catch(console.error);
-    }
   }, []);
 
   // Create prompt - uses functional update to avoid stale closure
@@ -87,11 +162,7 @@ export function usePrompts() {
     let finalPrompt = newPrompt;
     setPrompts(prev => {
       finalPrompt = { ...newPrompt, order: prev.length };
-      const newPrompts = [...prev, finalPrompt];
-      if (window.electronAPI) {
-        window.electronAPI.storeSet(STORAGE_KEYS.PROMPTS, newPrompts).catch(console.error);
-      }
-      return newPrompts;
+      return [...prev, finalPrompt];
     });
     return finalPrompt;
   }, []);
@@ -99,7 +170,7 @@ export function usePrompts() {
   // Update prompt - uses functional update to avoid stale closure
   const updatePrompt = useCallback(async (id: string, updates: Partial<Prompt>) => {
     setPrompts(prev => {
-      const newPrompts = prev.map((p) => {
+      return prev.map((p) => {
         if (p.id === id) {
           // Save version if content changed
           const versions = [...p.versions];
@@ -123,22 +194,12 @@ export function usePrompts() {
         }
         return p;
       });
-      if (window.electronAPI) {
-        window.electronAPI.storeSet(STORAGE_KEYS.PROMPTS, newPrompts).catch(console.error);
-      }
-      return newPrompts;
     });
   }, []);
 
   // Delete prompt - optimized for instant UI response
   const deletePrompt = useCallback((id: string) => {
-    setPrompts(prev => {
-      const newPrompts = prev.filter((p) => p.id !== id);
-      if (window.electronAPI) {
-        window.electronAPI.storeSet(STORAGE_KEYS.PROMPTS, newPrompts).catch(console.error);
-      }
-      return newPrompts;
-    });
+    setPrompts(prev => prev.filter((p) => p.id !== id));
   }, []);
 
   // Reorder prompts - optimized for instant UI response
@@ -147,39 +208,34 @@ export function usePrompts() {
       const result = Array.from(prev);
       const [removed] = result.splice(startIndex, 1);
       result.splice(endIndex, 0, removed);
-      
-      const reordered = result.map((p, index) => ({ ...p, order: index }));
-      if (window.electronAPI) {
-        window.electronAPI.storeSet(STORAGE_KEYS.PROMPTS, reordered).catch(console.error);
-      }
-      return reordered;
+      return result.map((p, index) => ({ ...p, order: index }));
     });
   }, []);
 
   // Toggle favorite - optimized for instant UI response
   const toggleFavorite = useCallback((id: string) => {
-    setPrompts(prev => {
-      const newPrompts = prev.map((p) =>
-        p.id === id ? { ...p, isFavorite: !p.isFavorite } : p
-      );
-      // Persist asynchronously
-      if (window.electronAPI) {
-        window.electronAPI.storeSet(STORAGE_KEYS.PROMPTS, newPrompts).catch(console.error);
-      }
-      return newPrompts;
-    });
+    setPrompts(prev => prev.map((p) =>
+      p.id === id ? { ...p, isFavorite: !p.isFavorite } : p
+    ));
   }, []);
 
-  // Restore version
+  // Restore version - uses functional update
   const restoreVersion = useCallback(async (promptId: string, versionId: string) => {
-    const prompt = prompts.find((p) => p.id === promptId);
-    if (!prompt) return;
-
-    const version = prompt.versions.find((v) => v.id === versionId);
-    if (!version) return;
-
-    await updatePrompt(promptId, { content: version.content });
-  }, [prompts, updatePrompt]);
+    setPrompts(prev => {
+      const prompt = prev.find(p => p.id === promptId);
+      if (!prompt) return prev;
+      const version = prompt.versions.find(v => v.id === versionId);
+      if (!version) return prev;
+      return prev.map(p => {
+        if (p.id === promptId) {
+          const versions = [...p.versions, { id: uuidv4(), content: p.content, createdAt: new Date().toISOString() }];
+          if (versions.length > 50) versions.shift();
+          return { ...p, content: version.content, versions, updatedAt: new Date().toISOString() };
+        }
+        return p;
+      });
+    });
+  }, []);
 
   // Filter prompts - memoized for performance
   const filteredPrompts = useMemo(() => {
@@ -220,11 +276,10 @@ export function usePrompts() {
   }, [prompts, searchFilter]);
 
   // Category management
-  const saveCategories = useCallback(async (newCategories: Category[]) => {
+  const saveCategories = useCallback((newCategories: Category[]) => {
     setCategories(newCategories);
-    if (window.electronAPI) {
-      await window.electronAPI.storeSet(STORAGE_KEYS.CATEGORIES, newCategories);
-    }
+    // Categories change infrequently, save immediately
+    window.electronAPI?.storeSet(STORAGE_KEYS.CATEGORIES, newCategories).catch(console.error);
   }, []);
 
   const addCategory = useCallback(async (category: Partial<Category>) => {
@@ -232,29 +287,41 @@ export function usePrompts() {
       id: uuidv4(),
       name: category.name || '新分类',
       color: category.color || '#3b82f6',
-      order: categories.length,
+      order: 0,
     };
-    await saveCategories([...categories, newCategory]);
+    setCategories(prev => {
+      const updated = [...prev, { ...newCategory, order: prev.length }];
+      window.electronAPI?.storeSet(STORAGE_KEYS.CATEGORIES, updated).catch(console.error);
+      return updated;
+    });
     return newCategory;
-  }, [categories, saveCategories]);
+  }, []);
 
   // Reorder categories
   const reorderCategories = useCallback(async (startIndex: number, endIndex: number) => {
-    const result = Array.from(categories);
-    const [removed] = result.splice(startIndex, 1);
-    result.splice(endIndex, 0, removed);
-    
-    const reordered = result.map((c, index) => ({ ...c, order: index }));
-    await saveCategories(reordered);
-  }, [categories, saveCategories]);
+    setCategories(prev => {
+      const result = Array.from(prev);
+      const [removed] = result.splice(startIndex, 1);
+      result.splice(endIndex, 0, removed);
+      const reordered = result.map((c, index) => ({ ...c, order: index }));
+      window.electronAPI?.storeSet(STORAGE_KEYS.CATEGORIES, reordered).catch(console.error);
+      return reordered;
+    });
+  }, []);
 
   // Pin category to top
   const pinCategoryToTop = useCallback(async (categoryId: string) => {
-    const categoryIndex = categories.findIndex(c => c.id === categoryId);
-    if (categoryIndex > 0) {
-      await reorderCategories(categoryIndex, 0);
-    }
-  }, [categories, reorderCategories]);
+    setCategories(prev => {
+      const categoryIndex = prev.findIndex(c => c.id === categoryId);
+      if (categoryIndex <= 0) return prev;
+      const result = Array.from(prev);
+      const [removed] = result.splice(categoryIndex, 1);
+      result.splice(0, 0, removed);
+      const reordered = result.map((c, index) => ({ ...c, order: index }));
+      window.electronAPI?.storeSet(STORAGE_KEYS.CATEGORIES, reordered).catch(console.error);
+      return reordered;
+    });
+  }, []);
 
   // Word categories management
   const saveWordCategories = useCallback(async (newWordCategories: WordCategory[]) => {
@@ -265,12 +332,10 @@ export function usePrompts() {
   }, []);
 
   // Word library management
-  const saveWordLibrary = useCallback(async (newWords: WordItem[]) => {
+  const saveWordLibrary = useCallback((newWords: WordItem[]) => {
     setWordLibrary(newWords);
-    if (window.electronAPI) {
-      await window.electronAPI.storeSet(STORAGE_KEYS.WORD_LIBRARY, newWords);
-    }
-  }, []);
+    debouncedSave(STORAGE_KEYS.WORD_LIBRARY, () => newWords);
+  }, [debouncedSave]);
 
   const addWord = useCallback(async (word: Partial<WordItem>) => {
     const newWord: WordItem = {
@@ -281,28 +346,35 @@ export function usePrompts() {
       tags: word.tags || [],
       usage: word.usage,
     };
-    await saveWordLibrary([...wordLibrary, newWord]);
+    setWordLibrary(prev => {
+      const updated = [...prev, newWord];
+      debouncedSave(STORAGE_KEYS.WORD_LIBRARY, () => updated);
+      return updated;
+    });
     return newWord;
-  }, [wordLibrary, saveWordLibrary]);
+  }, [debouncedSave]);
 
   const deleteWord = useCallback(async (id: string) => {
-    await saveWordLibrary(wordLibrary.filter((w) => w.id !== id));
-  }, [wordLibrary, saveWordLibrary]);
+    setWordLibrary(prev => {
+      const updated = prev.filter(w => w.id !== id);
+      debouncedSave(STORAGE_KEYS.WORD_LIBRARY, () => updated);
+      return updated;
+    });
+  }, [debouncedSave]);
 
   const updateWord = useCallback(async (id: string, updates: Partial<WordItem>) => {
-    const updatedWords = wordLibrary.map((w) =>
-      w.id === id ? { ...w, ...updates } : w
-    );
-    await saveWordLibrary(updatedWords);
-  }, [wordLibrary, saveWordLibrary]);
+    setWordLibrary(prev => {
+      const updated = prev.map(w => w.id === id ? { ...w, ...updates } : w);
+      debouncedSave(STORAGE_KEYS.WORD_LIBRARY, () => updated);
+      return updated;
+    });
+  }, [debouncedSave]);
 
   // Template management
-  const saveTemplates = useCallback(async (newTemplates: Template[]) => {
+  const saveTemplates = useCallback((newTemplates: Template[]) => {
     setTemplates(newTemplates);
-    if (window.electronAPI) {
-      await window.electronAPI.storeSet(STORAGE_KEYS.TEMPLATES, newTemplates);
-    }
-  }, []);
+    debouncedSave(STORAGE_KEYS.TEMPLATES, () => newTemplates);
+  }, [debouncedSave]);
 
   const addTemplate = useCallback(async (template: Partial<Template>) => {
     const newTemplate: Template = {
@@ -314,20 +386,29 @@ export function usePrompts() {
       variables: template.variables || [],
       createdAt: new Date().toISOString(),
     };
-    await saveTemplates([...templates, newTemplate]);
+    setTemplates(prev => {
+      const updated = [...prev, newTemplate];
+      debouncedSave(STORAGE_KEYS.TEMPLATES, () => updated);
+      return updated;
+    });
     return newTemplate;
-  }, [templates, saveTemplates]);
+  }, [debouncedSave]);
 
   const deleteTemplate = useCallback(async (id: string) => {
-    await saveTemplates(templates.filter((t) => t.id !== id));
-  }, [templates, saveTemplates]);
+    setTemplates(prev => {
+      const updated = prev.filter(t => t.id !== id);
+      debouncedSave(STORAGE_KEYS.TEMPLATES, () => updated);
+      return updated;
+    });
+  }, [debouncedSave]);
 
   const updateTemplate = useCallback(async (id: string, updates: Partial<Template>) => {
-    const updatedTemplates = templates.map((t) =>
-      t.id === id ? { ...t, ...updates } : t
-    );
-    await saveTemplates(updatedTemplates);
-  }, [templates, saveTemplates]);
+    setTemplates(prev => {
+      const updated = prev.map(t => t.id === id ? { ...t, ...updates } : t);
+      debouncedSave(STORAGE_KEYS.TEMPLATES, () => updated);
+      return updated;
+    });
+  }, [debouncedSave]);
 
   // Memoize sorted categories to keep stable reference
   const sortedCategories = useMemo(
