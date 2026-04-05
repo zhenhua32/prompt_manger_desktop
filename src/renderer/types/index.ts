@@ -148,3 +148,27 @@ export interface LLMApiConfig {
   enabled: boolean;
   systemPrompt: string;
 }
+
+// A/B Test types
+export interface ABTestVariant {
+  id: string;
+  label: string;
+  prompt: string;
+  negativePrompt?: string;
+  taskId?: string;
+  resultImage?: string;
+  rating?: number;
+  isWinner?: boolean;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  error?: string;
+}
+
+export interface ABTest {
+  id: string;
+  name: string;
+  variants: ABTestVariant[];
+  params?: ImageGenParams;
+  status: 'draft' | 'running' | 'completed';
+  createdAt: string;
+  updatedAt: string;
+}

@@ -160,6 +160,7 @@ export function useImageGen() {
           model: config.modelName,
           prompt,
           n: 1,
+          seed: Math.floor(Math.random() * 2 ** 32),
           response_format: 'url',
           ...(negativePrompt || mergedParams.negativePrompt ? { negative_prompt: negativePrompt || mergedParams.negativePrompt } : {}),
           ...(mergedParams.width ? { size: `${mergedParams.width}x${mergedParams.height || mergedParams.width}` } : {}),

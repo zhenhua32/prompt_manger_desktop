@@ -10,9 +10,11 @@ import TemplateManager from './components/TemplateManager';
 import ApiConfigPanel from './components/ApiConfigPanel';
 import TaskList from './components/TaskList';
 import SettingsPage from './components/SettingsPage';
+import ABTestPanel from './components/ABTestPanel';
+import { useABTest } from './hooks/useABTest';
 import { Prompt, SortOption } from './types';
 
-type View = 'prompts' | 'wordLibrary' | 'templates' | 'imageGen' | 'settings';
+type View = 'prompts' | 'wordLibrary' | 'templates' | 'imageGen' | 'abTest' | 'settings';
 
 /** Stable key that identifies the current prompt filter for scroll persistence */
 function getFilterKey(searchFilter: { favorites?: boolean; category?: string }): string {
@@ -67,12 +69,26 @@ function App() {
     translateContent,
   } = usePolish();
 
+  const {
+    tests: abTests,
+    createTest: createABTest,
+    deleteTest: deleteABTest,
+    runTest: runABTest,
+    stopTest: stopABTest,
+    rateVariant,
+    pickWinner,
+    updateVariantPrompt,
+    updateVariantNegativePrompt,
+    addVariant,
+    removeVariant,
+  } = useABTest(generateImage, tasks);
+
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
   const [currentView, setCurrentView] = useState<View>('prompts');
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [showApiConfig, setShowApiConfig] = useState(false);
 
-  const handleViewChange = useCallback((view: 'prompts' | 'wordLibrary' | 'templates' | 'imageGen' | 'settings') => {
+  const handleViewChange = useCallback((view: 'prompts' | 'wordLibrary' | 'templates' | 'imageGen' | 'abTest' | 'settings') => {
     if (view === 'imageGen') {
       setCurrentView('imageGen');
     } else {
@@ -350,6 +366,23 @@ function App() {
               )}
             </div>
           </div>
+        </div>
+
+        <div className={`flex-1 flex flex-col overflow-hidden ${currentView === 'abTest' ? '' : 'hidden'}`}>
+          <ABTestPanel
+            tests={abTests}
+            prompts={prompts}
+            onCreateTest={createABTest}
+            onDeleteTest={deleteABTest}
+            onRunTest={runABTest}
+            onStopTest={stopABTest}
+            onRateVariant={rateVariant}
+            onPickWinner={pickWinner}
+            onUpdateVariantPrompt={updateVariantPrompt}
+            onUpdateVariantNegativePrompt={updateVariantNegativePrompt}
+            onAddVariant={addVariant}
+            onRemoveVariant={removeVariant}
+          />
         </div>
 
         <div className={`flex-1 flex flex-col overflow-hidden ${currentView === 'settings' ? '' : 'hidden'}`}>
